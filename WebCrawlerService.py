@@ -198,7 +198,7 @@ class MyWebScraper:
         #    'sitemap_content': sitemap_content,
         #}
 
-        return result_robot, result_parse
+        return result_robot, #result_parse
 
 if __name__ == '__main__':
     scraper = MyWebScraper()
