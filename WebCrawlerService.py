@@ -1,6 +1,5 @@
 import platform
 from urllib.parse import urlparse
-
 from flask import Flask, request
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -9,6 +8,8 @@ import json
 import os
 import time
 import re
+import xml.etree.ElementTree as ET
+from robotexclusionrulesparser import RobotExclusionRulesParser
 
 
 class MyWebScraper:
@@ -55,73 +56,76 @@ class MyWebScraper:
         return None
 
     def get_sitemap_host(self, driver):
-
-        """
-        Returns the sitemap host if it is present in the page source code, otherwise returns None.
-        """
         sitemap_host = None
         page_source = driver.page_source
-        match = re.search('<sitemapindex.*?>\s*<sitemap>\s*<loc>(.*?)</loc>\s*<lastmod>(.*?)</lastmod>', page_source,
-                          re.DOTALL | re.IGNORECASE)
+        match = re.search(r'^\s*Sitemap:\s*(.*)', page_source,
+                          re.DOTALL | re.IGNORECASE | re.MULTILINE)
+
         if match:
             sitemap_host = match.group(1)
+
+        sub_str = ".xml"
+
+        # remove everything after the .xml
+        if sitemap_host and sub_str in sitemap_host:
+            sitemap_host = sitemap_host[:sitemap_host.index(sub_str) + len(sub_str)]
+
         return sitemap_host
 
     def get_sitemap_content(self, sitemap_host):
 
-        """
-        Returns the content of the sitemap if it is present, otherwise returns None.
-        """
-        sitemap_content = None
         if sitemap_host:
             response = requests.get(sitemap_host)
-            if response.status_code == 200:
-                sitemap_content = response.text
-        return sitemap_content
+            if response.status_code != 200:
+                print('Error: ' + str(response.status_code))
+                sitemap_content = "Error: " + str(response.status_code)
+                return sitemap_content
+            else:
 
-    def get_robots_content(self, driver):
+                root = ET.fromstring(response.content)
+                urls = []
 
-        """
-        Returns the content of the robots.txt file if it is present, otherwise returns None.
-        """
-        robots_content = None
-        page_source = driver.page_source
-        match = re.search('<a.*?href="(.*?/robots.txt)".*?>', page_source, re.IGNORECASE)
-        if match:
-            robot_url = match.group(1)
-            response = requests.get(robot_url)
-            if response.status_code == 200:
-                robots_content = response.text
+                #pars the xml file
+                for child in root:
+                    for url in child:
+                        # print(url.text)
+                        if ".xml" in url.text:
+                            response2 = requests.get(url.text)
+                            root2 = ET.fromstring(response2.content)
+                            for child2 in root2:
+                                for url2 in child2:
+                                    if "http" in url2.text:
+                                        urls.append(url2.text)
+                                        # print(url2.text)
+                return urls
 
-        return robots_content
+
 
     def check_robot_txt(self, driver):
 
-        """
-         Checks if the site can be crawled based on the robots.txt file and returns the delay and allowance if present, otherwise returns None.
-        """
-
         robot_delay = None
-        robot_allowance = None
-        page_source = driver.page_source
-        match = re.search('<a.*?href="(.*?/robots.txt)".*?>', page_source, re.IGNORECASE)
-        if match:
-            robot_url = match.group(1)
-            response = requests.get(robot_url)
-            if response.status_code == 200:
-                robots_content = response.text
-                lines = robots_content.split('\n')
-                for line in lines:
-                    if line.startswith('User-agent: *'):
-                        parts = line.split(':')
-                        if len(parts) > 1:
-                            robot_allowance = parts[1].strip()
-                    elif line.startswith('Crawl-delay: '):
-                        parts = line.split(':')
-                        if len(parts) > 1:
-                            robot_delay = parts[1].strip()
+
+        robots_url = driver.current_url.rstrip('/') + '/robots.txt'
+
+        # Parse the robots.txt file
+        rp = RobotExclusionRulesParser()
+        rp.fetch(robots_url)
+        # Check if the user agent is allowed to crawl the website
+        try:
+            rp.is_allowed('*', driver.current_url)
+            print('User agent is allowed to crawl the website')
+            robot_allowance = "User agent is allowed to crawl the website"
+        except Exception as ex:
+            print('User agent is not allowed to crawl the website')
+            print(ex)
+
+        # Get the crawl delay for the user agent
+        crawl_delay = rp.get_crawl_delay('*')
+        if crawl_delay is not None:
+            robot_delay = crawl_delay
 
         return robot_delay, robot_allowance
+
 
     def main(self, url):
         options = webdriver.ChromeOptions()
@@ -138,6 +142,7 @@ class MyWebScraper:
 
         driver.get(url+"robots.txt")
 
+
         time.sleep(self.TIMEOUT)
 
         domain = urlparse(url).netloc
@@ -148,17 +153,11 @@ class MyWebScraper:
         # Extract sitemap content
         sitemap_content = self.get_sitemap_content(sitemap_host)
 
-        # Extract robots content
-        robots_content = self.get_robots_content(driver)
-
-        # Check for URLs and page content
-        page_content = driver.page_source
-        urls = re.findall('''href=["'](.[^"']+)["']''', page_content)
-
         # Check robot.txt for crawling allowances and specific delay
         robot_delay, robot_allowance = self.check_robot_txt(driver)
 
         #Ta shit bo posiljal na frontier stvari amapk ne dela k nimamo se frontirja
+
         #data = {'message': html}
         #frontier_url = 'http://localhost:5000/extract'
         #headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
@@ -169,12 +168,9 @@ class MyWebScraper:
         result = {
             'domain': domain,
             'sitemap_host': sitemap_host,
-            'sitemap_content': sitemap_content,
-            'robots_content': robots_content,
-            'urls': urls,
-            'page_content': page_content,
             'robot_delay': robot_delay,
-            'robot_allowance': robot_allowance
+            'robot_allowance': robot_allowance,
+            'sitemap_content': sitemap_content,
         }
 
         print(result)
