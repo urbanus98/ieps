@@ -127,7 +127,12 @@ class MyWebScraper:
         return robot_delay, robot_allowance
 
 
+    def parse_html(self, url):
+
+        pass
+
     def main(self, url):
+
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--disable-gpu')
@@ -165,7 +170,7 @@ class MyWebScraper:
 
         driver.quit()
 
-        result = {
+        result_robot = {
             'domain': domain,
             'sitemap_host': sitemap_host,
             'robot_delay': robot_delay,
@@ -173,9 +178,27 @@ class MyWebScraper:
             'sitemap_content': sitemap_content,
         }
 
-        print(result)
+        print(result_robot)
 
-        return result
+        driver.get(url)
+
+        #html = parse_html(url)
+        #img = parse_img(url)
+        #links = parse_links(url)
+
+        httpStatusCode = driver.execute_script('return document.status')
+
+        #result_parse = {
+        #    "url": url,
+        #    'html': html,
+        #    'img': img,
+        #    'links': links,
+        #    'httpStatusCode':httpStatusCode,
+        #    "pageType": "HTML",
+        #    'sitemap_content': sitemap_content,
+        #}
+
+        return result_robot, result_parse
 
 if __name__ == '__main__':
     scraper = MyWebScraper()
