@@ -3,14 +3,17 @@ from urllib.parse import urlparse
 from flask import Flask, request
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.by import By
 import requests
 import json
 import os
 import time
+from datetime import datetime
 import re
 import xml.etree.ElementTree as ET
 from robotexclusionrulesparser import RobotExclusionRulesParser
-
+from canonisation import canonize_url
+import validators
 
 class MyWebScraper:
 
@@ -128,8 +131,42 @@ class MyWebScraper:
 
 
     def parse_html(self, url):
-
+        
         pass
+
+    def parse_links(self, aTags):
+        
+        links = []
+        for link in aTags:
+            href = link.get_attribute("href")
+            print(href)
+            if href is not None:
+                if validators.url(href):
+                    # print(href)
+                    links.append(canonize_url(href))
+
+        return links
+
+    def parse_img(self, imgs):
+        images = []
+        for img in imgs:
+            src = img.get_attribute("src")
+            # print(src)
+            if src:
+                # cut substring after last dot
+                ext = src[src.rfind('.'):]
+                # print(ext)
+                if ext.lower() in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.bmp', '.webp']:
+                    image = {
+                        "filename": src,
+                        "contentType": ext,
+                        "data": [],
+                        "accessedTime": datetime.now().isoformat(),
+                    }
+                    images.append(image)
+                else:
+                    print(f"Invalid ext: {ext}")
+        return images
 
     def main(self, url):
 
@@ -182,23 +219,27 @@ class MyWebScraper:
 
         driver.get(url)
 
-        #html = parse_html(url)
-        #img = parse_img(url)
-        #links = parse_links(url)
+
+        aTags = driver.find_elements(By.TAG_NAME, "a")
+        imgs = driver.find_elements(By.TAG_NAME, "img")
+        html = driver.page_source
+
+        links = parse_links(aTags)
+        img = parse_img(imgs)
 
         httpStatusCode = driver.execute_script('return document.status')
 
-        #result_parse = {
-        #    "url": url,
-        #    'html': html,
-        #    'img': img,
-        #    'links': links,
-        #    'httpStatusCode':httpStatusCode,
-        #    "pageType": "HTML",
-        #    'sitemap_content': sitemap_content,
-        #}
+        result_parse = {
+           "url": url,
+           'html': html,
+           'img': img,
+           'links': links,
+           'httpStatusCode':httpStatusCode,
+           "pageType": "HTML",
+           'sitemap_content': sitemap_content,
+        }
 
-        return result_robot, #result_parse
+        return result_robot, result_parse
 
 if __name__ == '__main__':
     scraper = MyWebScraper()
