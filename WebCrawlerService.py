@@ -5,7 +5,6 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 import requests
-import json
 import os
 import time
 from datetime import datetime
@@ -14,11 +13,16 @@ import xml.etree.ElementTree as ET
 from robotexclusionrulesparser import RobotExclusionRulesParser
 from canonisation import canonize_url
 import validators
+import hashlib
 
 class MyWebScraper:
 
     WEB_DRIVER_LOCATION = None
-    TIMEOUT = 5
+    TIMEOUT = 1
+    BIN_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx"]
+    found_bins = []
+    seen_html = "bbbfc734d8c3114e10d60ef347b043c7"
+
 
     def __init__(self):
         self.app = Flask("MyWebScraper")
@@ -135,16 +139,13 @@ class MyWebScraper:
         pass
 
     def parse_links(self, aTags):
-        
         links = []
         for link in aTags:
             href = link.get_attribute("href")
-            print(href)
             if href is not None:
                 if validators.url(href):
                     # print(href)
                     links.append(canonize_url(href))
-
         return links
 
     def parse_img(self, imgs):
@@ -168,6 +169,17 @@ class MyWebScraper:
                     print(f"Invalid ext: {ext}")
         return images
 
+    def checkBinary(self, url):
+        for ext in self.BIN_EXT:
+            if url.endswith(ext):
+                self.found_bins.append(ext)
+                return True
+        return False
+
+    def hash_html(self, html_content):
+        html_hash = hashlib.md5(html_content.encode('utf-8')).hexdigest()
+        return html_hash
+
     def main(self, url):
 
         options = webdriver.ChromeOptions()
@@ -175,7 +187,7 @@ class MyWebScraper:
         options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('user-agent=fri-ieps-TEST')
+        options.add_argument('user-agent=fri-ieps-Lt-Colonel-Kilgore-team')
 
         driver_service = Service(self.WEB_DRIVER_LOCATION)
         driver_service.start()
@@ -189,23 +201,17 @@ class MyWebScraper:
 
         domain = urlparse(url).netloc
 
-        # Extract sitemap host
+
         sitemap_host = self.get_sitemap_host(driver)
 
-        # Extract sitemap content
+
         sitemap_content = self.get_sitemap_content(sitemap_host)
 
-        # Check robot.txt for crawling allowances and specific delay
+
         robot_delay, robot_allowance = self.check_robot_txt(driver)
 
-        #Ta shit bo posiljal na frontier stvari amapk ne dela k nimamo se frontirja
 
-        #data = {'message': html}
-        #frontier_url = 'http://localhost:5000/extract'
-        #headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
-        #response = requests.post(frontier_url, data=json.dumps(data), headers=headers)
 
-        driver.quit()
 
         result_robot = {
             'domain': domain,
@@ -217,27 +223,76 @@ class MyWebScraper:
 
         print(result_robot)
 
-        driver.get(url)
 
 
-        aTags = driver.find_elements(By.TAG_NAME, "a")
-        imgs = driver.find_elements(By.TAG_NAME, "img")
-        html = driver.page_source
+        status_code = ""
 
-        links = parse_links(aTags)
-        img = parse_img(imgs)
+        try:
+            status_code = requests.get(url).status_code
+        except Exception as e:
+            print(e)
 
-        httpStatusCode = driver.execute_script('return document.status')
 
-        result_parse = {
-           "url": url,
-           'html': html,
-           'img': img,
-           'links': links,
-           'httpStatusCode':httpStatusCode,
-           "pageType": "HTML",
-           'sitemap_content': sitemap_content,
-        }
+        if self.checkBinary(url) is True:
+            page = {
+                "url": url,
+                "html": "",
+                "httpStatusCode": status_code,
+                "accessedTime": datetime.now().isoformat(),
+                "pageType": "BINARY",
+                "pageData": [
+                    {
+                        "dataTypeCode": self.found_bins
+                    }
+                ]
+            }
+        else:
+
+            driver.get(url)
+
+
+            aTags = driver.find_elements(By.TAG_NAME, "a")
+            imgs = driver.find_elements(By.TAG_NAME, "img")
+            html = driver.page_source
+
+            links = self.parse_links(aTags)
+            img = self.parse_img(imgs)
+
+
+            html_hash = self.hash_html(html)
+
+
+            if html_hash == self.seen_html:
+                print("Already seen this html")
+                return
+
+            result_parse = {
+
+               "url": url,
+               'html': html,
+               'img': img,
+               'links': links,
+               'httpStatusCode': status_code,
+               "pageType": "HTML",
+                'accessedTime': datetime.now().isoformat(),
+            }
+
+
+        print(result_parse)
+
+
+        print(html_hash)
+
+
+        driver.quit()
+
+
+        # Ta shit bo posiljal na frontier stvari amapk ne dela k nimamo se frontirja
+
+        # data = {'message': html}
+        # frontier_url = 'http://localhost:5000/extract'
+        # headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+        # response = requests.post(frontier_url, data=json.dumps(data), headers=headers)
 
         return result_robot, result_parse
 
