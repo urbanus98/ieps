@@ -86,7 +86,7 @@ def parsePage(status_code, url):
                 }
                 images.append(image)
             else:
-                print(f"Invalid file ext: {ext}")
+                print(f"Invalid ext: {ext}")
 
     # try:
         # json_object = json.dumps(res, indent=4)
