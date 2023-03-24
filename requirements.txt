@@ -1,0 +1,6 @@
+Flask==2.1.1
+selenium==4.1.1
+requests==2.27.1
+robotexclusionrulesparser==1.7.2
+validators==0.18.2
+xmltodict==0.12.0
