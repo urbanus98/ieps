@@ -50,7 +50,7 @@ class MyWebScraper:
 
     def scrape(self):
         input_value = request.get_json()['message']
-        self.logger.info(f'Starting scrape for URL: {input_value}')
+        self.logger.info(f'Starting scrape for URL: {input_value}\n')
         results = self.main([input_value])  # Make sure to put the input_value in a list
         return jsonify(results)
 
@@ -69,14 +69,14 @@ class MyWebScraper:
         if system in chromedriver_file:
             for root, dirs, files in os.walk(cwd):
                 if chromedriver_file[system] in files:
-                    self.logger.info(f'Found chromedriver at {os.path.join(root, chromedriver_file[system])}')
+                    self.logger.info(f'Found chromedriver at {os.path.join(root, chromedriver_file[system])}\n')
                     return os.path.join(root, chromedriver_file[system])
 
         return None
 
     def get_sitemap_host(self, driver):
         sitemap_host = None
-        self.logger.info("Getting sitemap host")
+        self.logger.info("Getting sitemap host\n")
         page_source = driver.page_source
         match = re.search(r'^\s*Sitemap:\s*(.*)', page_source,
                           re.DOTALL | re.IGNORECASE | re.MULTILINE)
@@ -90,15 +90,15 @@ class MyWebScraper:
         if sitemap_host and sub_str in sitemap_host:
             sitemap_host = sitemap_host[:sitemap_host.index(sub_str) + len(sub_str)]
 
-        self.logger.info(f"Sitemap host: {sitemap_host}")
+        self.logger.info(f"Sitemap host: {sitemap_host}\n")
         return sitemap_host
 
     def get_sitemap_content(self, sitemap_host):
-        self.logger.info("Getting sitemap content")
+        self.logger.info("Getting sitemap content\n")
         if sitemap_host:
             response = requests.get(sitemap_host)
             if response.status_code != 200:
-                self.logger.error(f"Error getting sitemap content: {response.status_code}")
+                self.logger.error(f"Error getting sitemap content: {response.status_code}\n")
                 sitemap_content = "Error: " + str(response.status_code)
                 return sitemap_content
             else:
@@ -117,15 +117,15 @@ class MyWebScraper:
                                 for url2 in child2:
                                     if "http" in url2.text:
                                         urls.append(url2.text)
-                                        self.logger.info(f"Found URL: {url2.text}")
+                                        self.logger.info(f"Found URL: {url2.text}\n")
                 return urls
         else:
-            self.logger.error("No sitemap host found")
+            self.logger.error("No sitemap host found\n")
             return ''
 
     def check_robot_txt(self, driver):
 
-        self.logger.info("Checking robot.txt")
+        self.logger.info("Checking robot.txt\n")
 
         robot_delay = None
         robot_allowance = None
@@ -143,19 +143,19 @@ class MyWebScraper:
         except Exception as ex:
             print('User agent is not allowed to crawl the website')
             print(ex)
-        self.logger.info(f"Robot.txt allowance: {robot_allowance}")
+        self.logger.info(f"Robot.txt allowance: {robot_allowance}\n")
 
         # Get the crawl delay for the user agent
         crawl_delay = rp.get_crawl_delay('*')
         if crawl_delay is not None:
             robot_delay = crawl_delay
 
-        self.logger.info(f"Robot.txt delay: {robot_delay}")
+        self.logger.info(f"Robot.txt delay: {robot_delay}\n")
 
         return robot_delay, robot_allowance
 
     def parse_links(self, a_tags):
-        self.logger.info("Parsing links")
+        self.logger.info("Parsing links\n")
         links = []
         for link in a_tags:
             href = link.get_attribute("href")
@@ -164,7 +164,7 @@ class MyWebScraper:
                     # print(href)
                     canonized_href = self.canonize_url(href)
                     links.append(canonize_url(canonized_href))
-        self.logger.info(f"Found {len(links)} links")
+        self.logger.info(f"Found {len(links)} links\n")
         return links
 
     def canonize_url(self, url):
@@ -179,7 +179,7 @@ class MyWebScraper:
         return canonized_url
 
     def parse_img(self, imgs):
-        self.logger.info("Parsing images")
+        self.logger.info("Parsing images\n")
         images = []
         for img in imgs:
             src = img.get_attribute("src")
@@ -198,43 +198,43 @@ class MyWebScraper:
                     images.append(image)
                 else:
                     print(f"Invalid ext: {ext}")
-                    self.logger.error(f"Invalid ext: {ext}")
+                    self.logger.error(f"Invalid ext: {ext}\n")
             self.logger.info(f"Found {len(images)} images")
         return images
 
     def check_binary(self, url):
-        self.logger.info("Checking binary")
+        self.logger.info("Checking binary\n")
         for ext in self.BIN_EXT:
             # if ext in url: # maybe better
             if url.endswith(ext):
                 self.found_bin = ext
-                self.logger.info("Found binary")
+                self.logger.info("Found binary\n")
                 return True
-        self.logger.info("Not binary")
+        self.logger.info("Not binary\n")
         return False
 
     def hash_html(self, html_content):
-        self.logger.info("Hashing html")
+        self.logger.info("Hashing html\n")
         return hashlib.md5(html_content.encode('utf-8')).hexdigest()
 
     def get_visited_domains(self):
-        self.logger.info("Getting visited domains")
-        response = requests.get(f'{self.FRONTIER_SERVER_URL}/visited_domains')
+        self.logger.info("Getting visited domains\n")
+        response = requests.get(f'{self.FRONTIER_SERVER_URL}/visited_domains\n')
         if response.status_code == 200:
-            self.logger.info("Got visited domains")
+            self.logger.info("Got visited domains\n")
             return set(response.json()['visited_domains'])
         else:
-            self.logger.error(f"Error: Failed to fetch visited domains. Status code: {response.status_code}")
+            self.logger.error(f"Error: Failed to fetch visited domains. Status code: {response.status_code}\n")
             raise Exception(f"Error: Failed to fetch visited domains. Status code: {response.status_code}")
 
     def get_hashes_from_frontier(self):
-        self.logger.info("Getting hashes from frontier")
+        self.logger.info("Getting hashes from frontier\n")
         response = requests.get(f'{self.FRONTIER_SERVER_URL}/hashes')
         if response.status_code == 200:
-            self.logger.info("Got hashes from frontier")
+            self.logger.info("Got hashes from frontier\n")
             return set(response.json()['hashes'])
         else:
-            self.logger.error(f"Error: Failed to fetch hashes. Status code: {response.status_code}")
+            self.logger.error(f"Error: Failed to fetch hashes. Status code: {response.status_code}\n")
             raise Exception(f"Error: Failed to fetch hashes. Status code: {response.status_code}")
 
     def process_url(self,url):
@@ -260,7 +260,7 @@ class MyWebScraper:
 
         result_robot = {}
         #if domain not in visited_domains:
-        self.logger.info("Domain already visited")
+        self.logger.info("Domain already visited\n")
         sitemap_host = self.get_sitemap_host(driver)
         sitemap_content = self.get_sitemap_content(sitemap_host)
         robot_delay, robot_allowance = self.check_robot_txt(driver)
@@ -282,7 +282,7 @@ class MyWebScraper:
         driver.quit()
 
         if self.check_binary(url):
-            self.logger.info("Binary content found")
+            self.logger.info("Binary content found\n")
             result_parse = {
                 'url': url,
                 'html': "",
@@ -292,7 +292,7 @@ class MyWebScraper:
                 'pageTypeCode': self.found_bin
             }
         else:
-            self.logger.info("HTML content found")
+            self.logger.info("HTML content found\n")
 
             links = self.parse_links(a_tags)
             img = self.parse_img(imgs)
@@ -318,11 +318,9 @@ class MyWebScraper:
         with ThreadPoolExecutor(max_workers=4) as executor:
             results = list(executor.map(self.process_url, urls))
 
-
-        self.logger.info("Finished scraping sending results to frontier")
+        self.logger.info("Finished scraping sending results to frontier\n")
 
         return results
-
 
 if __name__ == '__main__':
     scraper = MyWebScraper()
