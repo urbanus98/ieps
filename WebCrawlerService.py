@@ -1,6 +1,5 @@
 import platform
-from urllib.parse import urlparse
-from flask import Flask, request
+from flask import Flask, request,jsonify
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -16,7 +15,8 @@ import validators
 import hashlib
 import logging
 from io import StringIO
-
+from urllib.parse import urlparse, urlunparse
+from concurrent.futures import ThreadPoolExecutor
 
 class MyWebScraper:
 
@@ -24,7 +24,7 @@ class MyWebScraper:
     TIMEOUT = 5
     BIN_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx"]
     found_bin = ""
-    FRONTIER_SERVER_URL = 'http://frontier.example.com'
+    FRONTIER_SERVER_URL = 'http://127.0.0.1:8000'
 
     def __init__(self):
         self.app = Flask("MyWebScraper_number")
@@ -45,14 +45,14 @@ class MyWebScraper:
             MyWebScraper.WEB_DRIVER_LOCATION = self.find_chromedriver()
 
 
-
     def start(self):
         self.app.run()
 
     def scrape(self):
-        input_value = request.form['message']
+        input_value = request.get_json()['message']
         self.logger.info(f'Starting scrape for URL: {input_value}')
-        return self.main(input_value)
+        results = self.main([input_value])  # Make sure to put the input_value in a list
+        return jsonify(results)
 
     def get_logs(self):
         return self.log_stream.getvalue()
@@ -162,9 +162,21 @@ class MyWebScraper:
             if href is not None:
                 if validators.url(href):
                     # print(href)
-                    links.append(canonize_url(href))
+                    canonized_href = self.canonize_url(href)
+                    links.append(canonize_url(canonized_href))
         self.logger.info(f"Found {len(links)} links")
         return links
+
+    def canonize_url(self, url):
+        parsed_url = urlparse(url)
+
+        # Remove fragment identifier and make the hostname lowercase
+        parsed_url = parsed_url._replace(fragment='', netloc=parsed_url.netloc.lower())
+
+        # Reconstruct the URL from its components
+        canonized_url = urlunparse(parsed_url)
+
+        return canonized_url
 
     def parse_img(self, imgs):
         self.logger.info("Parsing images")
@@ -225,8 +237,7 @@ class MyWebScraper:
             self.logger.error(f"Error: Failed to fetch hashes. Status code: {response.status_code}")
             raise Exception(f"Error: Failed to fetch hashes. Status code: {response.status_code}")
 
-    def main(self, url):
-
+    def process_url(self,url):
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--disable-gpu')
@@ -239,28 +250,28 @@ class MyWebScraper:
 
         driver = webdriver.Chrome(service=driver_service, options=options)
 
-        driver.get(url+"robots.txt")
+        driver.get(url + "robots.txt")
 
         time.sleep(self.TIMEOUT)
 
         domain = urlparse(url).netloc
 
-        visited_domains = self.get_visited_domains()
+        #visited_domains = self.get_visited_domains()
 
         result_robot = {}
-        if domain not in visited_domains:
-            self.logger.info("Domain already visited")
-            sitemap_host = self.get_sitemap_host(driver)
-            sitemap_content = self.get_sitemap_content(sitemap_host)
-            robot_delay, robot_allowance = self.check_robot_txt(driver)
+        #if domain not in visited_domains:
+        self.logger.info("Domain already visited")
+        sitemap_host = self.get_sitemap_host(driver)
+        sitemap_content = self.get_sitemap_content(sitemap_host)
+        robot_delay, robot_allowance = self.check_robot_txt(driver)
 
-            result_robot = {
+        result_robot = {
                 'domain': domain,
                 'sitemap_host': sitemap_host,
                 'robot_delay': robot_delay,
                 'robot_allowance': robot_allowance,
                 'sitemap_content': sitemap_content,
-            }
+        }
 
         status_code = requests.get(url).status_code if not self.check_binary(url) else ""
 
@@ -296,14 +307,21 @@ class MyWebScraper:
                 'httpStatusCode': status_code,
                 'accessedTime': datetime.now().isoformat(),
                 'hash': html_hash,
-            }if html_hash in self.get_hashes_from_frontier() else {
-                'url': url,
-                'warning': 'This page has been parsed.'
-            }
+            } #if html_hash in self.get_hashes_from_frontier() else {
+                #'url': url,
+                #'warning': 'This page has been parsed.'
+            #}
+        return result_robot, result_parse
+
+    def main(self, urls):
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            results = list(executor.map(self.process_url, urls))
+
 
         self.logger.info("Finished scraping sending results to frontier")
 
-        return result_robot, result_parse
+        return results
 
 
 if __name__ == '__main__':
