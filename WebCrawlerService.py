@@ -50,9 +50,12 @@ class MyWebScraper:
         self.app.run(host=host, port=port)
 
     def scrape(self):
-        input_value = request.get_json()['message']
-        self.logger.info(f'Starting scrape for URL: {input_value}\n')
-        results = self.main([input_value])  # Make sure to put the input_value in a list
+        input_messages = request.get_json().get('messages', [])
+        results = []
+        for input_value in input_messages:
+            self.logger.info(f'Starting scrape for URL: {input_value}\n')
+            result = self.main([input_value])  # Make sure to put the input_value in a list
+            results.extend(result)
         return jsonify(results)
 
     def get_logs(self):
@@ -162,6 +165,8 @@ class MyWebScraper:
     def parse_links(self, a_tags):
         self.logger.info("Parsing links\n")
         links = []
+        print('Parsing links')
+        #od tuki naprej se neki sfuka z linki in pol ne dela
         for link in a_tags:
             href = link.get_attribute("href")
             if href is not None:
