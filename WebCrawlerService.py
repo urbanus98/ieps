@@ -1,5 +1,5 @@
 import platform
-from flask import Flask, request,jsonify
+from flask import Flask, request,jsonify,make_response
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -18,7 +18,9 @@ from io import StringIO
 from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor
 
+
 class MyWebScraper:
+    AUTH = ("Hanoi", "I_love_the_smell_of_napalm_in_the_morning")
 
     WEB_DRIVER_LOCATION = None
     TIMEOUT = 5
@@ -33,7 +35,7 @@ class MyWebScraper:
 
         self.log_stream = StringIO()
         log_handler = logging.StreamHandler(self.log_stream)
-        log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s\n')
         log_handler.setFormatter(log_formatter)
 
         # Set up logger
@@ -44,9 +46,8 @@ class MyWebScraper:
         if not MyWebScraper.WEB_DRIVER_LOCATION:
             MyWebScraper.WEB_DRIVER_LOCATION = self.find_chromedriver()
 
-
-    def start(self):
-        self.app.run()
+    def start(self, host='0.0.0.0', port=5000):
+        self.app.run(host=host, port=port)
 
     def scrape(self):
         input_value = request.get_json()['message']
@@ -55,15 +56,19 @@ class MyWebScraper:
         return jsonify(results)
 
     def get_logs(self):
-        return self.log_stream.getvalue()
+        logs = self.log_stream.getvalue().split('\n')
+        logs_html = '<br>'.join(logs)
+        response = make_response(logs_html, 200)
+        response.mimetype = "text/html"
+        return response
 
     def find_chromedriver(self):
         cwd = os.getcwd()
         system = platform.system()
         chromedriver_file = {
             'Windows': 'chromedriver.exe',
-            'Darwin': 'chromedriver_mac',
-            'Linux': 'chromedriver_linux',
+            'Darwin': 'chromedriver',
+            'Linux': 'chromedriver',
         }
 
         if system in chromedriver_file:
@@ -250,12 +255,10 @@ class MyWebScraper:
 
         driver = webdriver.Chrome(service=driver_service, options=options)
 
-        driver.get(url + "robots.txt")
+        driver.get(url + "/robots.txt")
 
         time.sleep(self.TIMEOUT)
-
         domain = urlparse(url).netloc
-
         #visited_domains = self.get_visited_domains()
 
         result_robot = {}
@@ -324,4 +327,4 @@ class MyWebScraper:
 
 if __name__ == '__main__':
     scraper = MyWebScraper()
-    scraper.start()
+    scraper.start(host='0.0.0.0', port=5000)
