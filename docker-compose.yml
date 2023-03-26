@@ -1,13 +1,12 @@
 version: '3'
 
 services:
-  scraper:
+  web_scraper:
     build: .
     ports:
       - "5000:5000"
     volumes:
       - .:/app
     environment:
-      - PYTHONUNBUFFERED=1
-    stdin_open: true
-    tty: true
+      - FLASK_APP=app.py
+      - FLASK_RUN_HOST=0.0.0.0

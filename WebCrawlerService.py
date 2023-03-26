@@ -1,3 +1,4 @@
+import concurrent
 import platform
 from flask import Flask, request,jsonify,make_response
 from selenium import webdriver
@@ -10,14 +11,26 @@ from datetime import datetime
 import re
 import xml.etree.ElementTree as Et
 from robotexclusionrulesparser import RobotExclusionRulesParser
-from canonisation import canonize_url
 import validators
 import hashlib
 import logging
 from io import StringIO
 from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor
+from functools import wraps
 
+
+class MyProjectError(Exception):
+    """Exception class from which every exception in this library will derive."""
+    pass
+
+class VisitedDomainsError(MyProjectError):
+    """A specific error for visited domains."""
+    pass
+
+class HashesError(MyProjectError):
+    """A specific error for fetching hashes."""
+    pass
 
 class MyWebScraper:
     AUTH = ("Hanoi", "I_love_the_smell_of_napalm_in_the_morning")
@@ -27,6 +40,7 @@ class MyWebScraper:
     BIN_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx"]
     found_bin = ""
     FRONTIER_SERVER_URL = 'http://127.0.0.1:8000'
+
 
     def __init__(self):
         self.app = Flask("MyWebScraper_number")
@@ -125,7 +139,8 @@ class MyWebScraper:
                                 for url2 in child2:
                                     if "http" in url2.text:
                                         urls.append(url2.text)
-                                        self.logger.info(f"Found URL: {url2.text}\n")
+
+                self.logger.info(f"Found URL: {len(urls)}\n")
                 return urls
         else:
             self.logger.error("No sitemap host found\n")
@@ -169,23 +184,17 @@ class MyWebScraper:
         #od tuki naprej se neki sfuka z linki in pol ne dela
         for link in a_tags:
             href = link.get_attribute("href")
-            if href is not None:
-                if validators.url(href):
-                    # print(href)
-                    canonized_href = self.canonize_url(href)
-                    links.append(canonize_url(canonized_href))
+            if href is not None and validators.url(href):
+                canonized_href = self.canonize_url(href)
+                links.append(canonized_href)
         self.logger.info(f"Found {len(links)} links\n")
         return links
 
     def canonize_url(self, url):
         parsed_url = urlparse(url)
-
-        # Remove fragment identifier and make the hostname lowercase
         parsed_url = parsed_url._replace(fragment='', netloc=parsed_url.netloc.lower())
-
-        # Reconstruct the URL from its components
         canonized_url = urlunparse(parsed_url)
-
+        self.logger.info("Canonized URL \n")
         return canonized_url
 
     def parse_img(self, imgs):
@@ -235,7 +244,7 @@ class MyWebScraper:
             return set(response.json()['visited_domains'])
         else:
             self.logger.error(f"Error: Failed to fetch visited domains. Status code: {response.status_code}\n")
-            raise Exception(f"Error: Failed to fetch visited domains. Status code: {response.status_code}")
+            raise  VisitedDomainsError(f"Error: Failed to fetch visited domains. Status code: {response.status_code}")
 
     def get_hashes_from_frontier(self):
         self.logger.info("Getting hashes from frontier\n")
@@ -245,20 +254,24 @@ class MyWebScraper:
             return set(response.json()['hashes'])
         else:
             self.logger.error(f"Error: Failed to fetch hashes. Status code: {response.status_code}\n")
-            raise Exception(f"Error: Failed to fetch hashes. Status code: {response.status_code}")
+            raise HashesError(f"Error: Failed to fetch hashes. Status code: {response.status_code}")
+
 
     def process_url(self,url):
+
         options = webdriver.ChromeOptions()
         options.add_argument('--headless')
         options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36')
         options.add_argument('user-agent=fri-ieps-Lt-Colonel-Kilgore-team')
 
         driver_service = Service(self.WEB_DRIVER_LOCATION)
         driver_service.start()
 
         driver = webdriver.Chrome(service=driver_service, options=options)
+
 
         driver.get(url + "/robots.txt")
 
@@ -284,6 +297,7 @@ class MyWebScraper:
         status_code = requests.get(url).status_code if not self.check_binary(url) else ""
 
         driver.get(url)
+
         a_tags = driver.find_elements(By.TAG_NAME, "a")
         imgs = driver.find_elements(By.TAG_NAME, "img")
         html = driver.page_source
@@ -323,8 +337,19 @@ class MyWebScraper:
 
     def main(self, urls):
 
+        results = []
         with ThreadPoolExecutor(max_workers=4) as executor:
-            results = list(executor.map(self.process_url, urls))
+            for url in urls:
+                time.sleep(self.TIMEOUT)
+                future_to_url = {executor.submit(self.process_url, url): url}
+                for future in concurrent.futures.as_completed(future_to_url):
+                    url = future_to_url[future]
+                    try:
+                        result = future.result()
+                        results.append(result)
+                    except Exception as exc:
+                        self.logger.error(f'Error processing URL {url}: {exc}\n')
+                        results.append({'url': url, 'error': str(exc)})
 
         self.logger.info("Finished scraping sending results to frontier\n")
 

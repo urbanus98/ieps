@@ -1,20 +1,20 @@
-# Use the official Python image as the base image
-FROM python:3.9
+# Use an official Python runtime as a parent image
+FROM python:3.8-slim
 
-# Set the working directory
+# Set the working directory to /app
 WORKDIR /app
 
-# Copy requirements.txt into the container
-COPY requirements.txt .
+# Copy the current directory contents into the container at /app
+COPY . /app
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --trusted-host pypi.python.org -r requirements.txt
 
-# Copy the rest of the application code into the container
-COPY . .
-
 # Make port 5000 available to the world outside this container
 EXPOSE 5000
 
-# Define the command to run the application
-CMD ["python", "your_scraper_script.py"]
+# Define environment variable
+ENV FLASK_APP=app.py
+
+# Run the command to start the web scraper
+CMD ["python", "app.py"]
