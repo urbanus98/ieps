@@ -1,6 +1,6 @@
 import concurrent
 import platform
-from flask import Flask, request,jsonify,make_response
+from flask import Flask, request, jsonify, make_response
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -17,7 +17,7 @@ import logging
 from io import StringIO
 from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor
-from functools import wraps
+
 
 
 class MyProjectError(Exception):
@@ -296,12 +296,6 @@ class MyWebScraper:
 
         status_code = requests.get(url).status_code if not self.check_binary(url) else ""
 
-        driver.get(url)
-
-        a_tags = driver.find_elements(By.TAG_NAME, "a")
-        imgs = driver.find_elements(By.TAG_NAME, "img")
-        html = driver.page_source
-        driver.quit()
 
         if self.check_binary(url):
             self.logger.info("Binary content found\n")
@@ -314,12 +308,18 @@ class MyWebScraper:
                 'pageTypeCode': self.found_bin
             }
         else:
-            self.logger.info("HTML content found\n")
+            driver.get(url)
 
+            a_tags = driver.find_elements(By.TAG_NAME, "a")
+            imgs = driver.find_elements(By.TAG_NAME, "img")
+            html = driver.page_source
+
+            self.logger.info("HTML content found\n")
             links = self.parse_links(a_tags)
             img = self.parse_img(imgs)
             html_hash = self.hash_html(html)
 
+            driver.quit()
             result_parse = {
                 'url': url,
                 'html': html,
@@ -343,6 +343,7 @@ class MyWebScraper:
                 time.sleep(self.TIMEOUT)
                 future_to_url = {executor.submit(self.process_url, url): url}
                 for future in concurrent.futures.as_completed(future_to_url):
+                    time.sleep(self.TIMEOUT)
                     url = future_to_url[future]
                     try:
                         result = future.result()
