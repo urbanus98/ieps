@@ -161,10 +161,10 @@ class MyWebScraper:
         # Check if the user agent is allowed to crawl the website
         try:
             rp.is_allowed('*', driver.current_url)
-            print('User agent is allowed to crawl the website')
+            #print('User agent is allowed to crawl the website')
             robot_allowance = "User agent is allowed to crawl the website"
         except Exception as ex:
-            print('User agent is not allowed to crawl the website')
+            #print('User agent is not allowed to crawl the website')
             print(ex)
         self.logger.info(f"Robot.txt allowance: {robot_allowance}\n")
 
@@ -180,7 +180,7 @@ class MyWebScraper:
     def parse_links(self, a_tags):
         self.logger.info("Parsing links\n")
         links = []
-        print('Parsing links')
+        #print('Parsing links')
         #od tuki naprej se neki sfuka z linki in pol ne dela
         for link in a_tags:
             href = link.get_attribute("href")
@@ -216,7 +216,7 @@ class MyWebScraper:
                     }
                     images.append(image)
                 else:
-                    print(f"Invalid ext: {ext}")
+                    #print(f"Invalid ext: {ext}")
                     self.logger.error(f"Invalid ext: {ext}\n")
             self.logger.info(f"Found {len(images)} images")
         return images
@@ -294,6 +294,8 @@ class MyWebScraper:
                 'sitemap_content': sitemap_content,
         }
 
+        #dodja robot text da upošteva dilay in allowance
+
         status_code = requests.get(url).status_code if not self.check_binary(url) else ""
 
 
@@ -338,12 +340,10 @@ class MyWebScraper:
     def main(self, urls):
 
         results = []
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers=10) as executor:
             for url in urls:
-                time.sleep(self.TIMEOUT)
                 future_to_url = {executor.submit(self.process_url, url): url}
                 for future in concurrent.futures.as_completed(future_to_url):
-                    time.sleep(self.TIMEOUT)
                     url = future_to_url[future]
                     try:
                         result = future.result()
