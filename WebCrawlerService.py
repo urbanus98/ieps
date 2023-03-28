@@ -47,6 +47,8 @@ class MyWebScraper:
         self.app.route('/scrape', methods=['POST'])(self.scrape)
         self.app.route('/logs', methods=['GET'])(self.get_logs)
 
+        self.session = requests.Session()
+
         self.log_stream = StringIO()
         log_handler = logging.StreamHandler(self.log_stream)
         log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s\n')
@@ -100,11 +102,13 @@ class MyWebScraper:
         sitemap_host = None
         self.logger.info("Getting sitemap host\n")
         page_source = driver.page_source
-        match = re.search(r'^\s*Sitemap:\s*(.*)', page_source,
-                          re.DOTALL | re.IGNORECASE | re.MULTILINE)
+        lines = page_source.split('\n')
 
-        if match:
-            sitemap_host = match.group(1)
+        for line in lines:
+            line = line.strip()
+            if line.lower().startswith('sitemap:'):
+                sitemap_host = line[len('sitemap:'):].strip()
+                break
 
         sub_str = ".xml"
 
@@ -117,34 +121,30 @@ class MyWebScraper:
 
     def get_sitemap_content(self, sitemap_host):
         self.logger.info("Getting sitemap content\n")
-        if sitemap_host:
-            response = requests.get(sitemap_host)
+        urls = []
+
+        def process_sitemap(host):
+            if not host:
+                return
+
+            response = self.session.get(host)
             if response.status_code != 200:
                 self.logger.error(f"Error getting sitemap content: {response.status_code}\n")
-                sitemap_content = "Error: " + str(response.status_code)
-                return sitemap_content
-            else:
+                return
 
-                root = Et.fromstring(response.content)
-                urls = []
+            root = Et.fromstring(response.content)
 
-                # pars the xml file
-                for child in root:
-                    for url in child:
-                        # print(url.text)
-                        if ".xml" in url.text:
-                            response2 = requests.get(url.text)
-                            root2 = Et.fromstring(response2.content)
-                            for child2 in root2:
-                                for url2 in child2:
-                                    if "http" in url2.text:
-                                        urls.append(url2.text)
+            for child in root:
+                for url in child:
+                    url_text = url.text
+                    if url_text.endswith(".xml"):
+                        process_sitemap(url_text)
+                    elif "http" in url_text:
+                        urls.append(url_text)
 
-                self.logger.info(f"Found URL: {len(urls)}\n")
-                return urls
-        else:
-            self.logger.error("No sitemap host found\n")
-            return ''
+        process_sitemap(sitemap_host)
+        self.logger.info(f"Found URL: {len(urls)}\n")
+        return urls
 
     def check_robot_txt(self, driver):
 
@@ -187,6 +187,7 @@ class MyWebScraper:
             if href is not None and validators.url(href):
                 canonized_href = self.canonize_url(href)
                 links.append(canonized_href)
+        self.logger.info("URL canonization\n")
         self.logger.info(f"Found {len(links)} links\n")
         return links
 
@@ -194,7 +195,7 @@ class MyWebScraper:
         parsed_url = urlparse(url)
         parsed_url = parsed_url._replace(fragment='', netloc=parsed_url.netloc.lower())
         canonized_url = urlunparse(parsed_url)
-        self.logger.info("Canonized URL \n")
+        #self.logger.info("Canonized URL \n")
         return canonized_url
 
     def parse_img(self, imgs):
@@ -218,7 +219,7 @@ class MyWebScraper:
                 else:
                     #print(f"Invalid ext: {ext}")
                     self.logger.error(f"Invalid ext: {ext}\n")
-            self.logger.info(f"Found {len(images)} images")
+        self.logger.info(f"Found {len(images)} images")
         return images
 
     def check_binary(self, url):
@@ -264,7 +265,7 @@ class MyWebScraper:
         options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36')
+        #options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36')
         options.add_argument('user-agent=fri-ieps-Lt-Colonel-Kilgore-team')
 
         driver_service = Service(self.WEB_DRIVER_LOCATION)
@@ -272,6 +273,7 @@ class MyWebScraper:
 
         driver = webdriver.Chrome(service=driver_service, options=options)
 
+        sitemap_content = []
 
         driver.get(url + "/robots.txt")
 
@@ -296,8 +298,7 @@ class MyWebScraper:
 
         #dodja robot text da upošteva dilay in allowance
 
-        status_code = requests.get(url).status_code if not self.check_binary(url) else ""
-
+        status_code = self.session.get(url).status_code if not self.check_binary(url) else ""
 
         if self.check_binary(url):
             self.logger.info("Binary content found\n")
@@ -309,6 +310,7 @@ class MyWebScraper:
                 'pageType': "BINARY",
                 'pageTypeCode': self.found_bin
             }
+            driver.close()
         else:
             driver.get(url)
 
@@ -321,7 +323,13 @@ class MyWebScraper:
             img = self.parse_img(imgs)
             html_hash = self.hash_html(html)
 
-            driver.quit()
+            links_all = []
+
+            for url in sitemap_content:
+                if url not in links:
+                    links_all.append(url)
+
+            driver.close()
             result_parse = {
                 'url': url,
                 'html': html,
@@ -331,6 +339,7 @@ class MyWebScraper:
                 'httpStatusCode': status_code,
                 'accessedTime': datetime.now().isoformat(),
                 'hash': html_hash,
+                'links_all': links_all
             } #if html_hash in self.get_hashes_from_frontier() else {
                 #'url': url,
                 #'warning': 'This page has been parsed.'
@@ -341,16 +350,15 @@ class MyWebScraper:
 
         results = []
         with ThreadPoolExecutor(max_workers=10) as executor:
-            for url in urls:
-                future_to_url = {executor.submit(self.process_url, url): url}
-                for future in concurrent.futures.as_completed(future_to_url):
-                    url = future_to_url[future]
-                    try:
-                        result = future.result()
-                        results.append(result)
-                    except Exception as exc:
-                        self.logger.error(f'Error processing URL {url}: {exc}\n')
-                        results.append({'url': url, 'error': str(exc)})
+            futures = {executor.submit(self.process_url, url): url for url in urls}
+            for future in concurrent.futures.as_completed(futures):
+                url = futures[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as exc:
+                    self.logger.error(f'Error processing URL {url}: {exc}\n')
+                    results.append({'url': url, 'error': str(exc)})
 
         self.logger.info("Finished scraping sending results to frontier\n")
 
