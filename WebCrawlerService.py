@@ -63,15 +63,22 @@ class MyWebScraper:
             MyWebScraper.WEB_DRIVER_LOCATION = self.find_chromedriver()
 
     def start(self, host='0.0.0.0', port=5000):
-        self.app.run(host=host, port=port)
+        try:
+            self.app.run(host=host, port=port)
+        except Exception as e:
+            self.logger.error(f'Error starting the Flask app: {e}\n')
 
     def scrape(self):
         input_messages = request.get_json().get('messages', [])
         results = []
         for input_value in input_messages:
             self.logger.info(f'Starting scrape for URL: {input_value}\n')
-            result = self.main([input_value])  # Make sure to put the input_value in a list
-            results.extend(result)
+            try:
+                result = self.main([input_value])  # Make sure to put the input_value in a list
+                results.extend(result)
+            except Exception as e:
+                self.logger.error(f'Error processing URL {input_value}: {e}\n')
+                results.append({'url': input_value, 'error': str(e)})
         return jsonify(results)
 
     def get_logs(self):
@@ -116,38 +123,64 @@ class MyWebScraper:
         if sitemap_host and sub_str in sitemap_host:
             sitemap_host = sitemap_host[:sitemap_host.index(sub_str) + len(sub_str)]
 
-        self.logger.info(f"Sitemap host: {sitemap_host}\n")
-        return sitemap_host
+            # check if sitemap_host is working or returns a 404 error
+            response = requests.get(sitemap_host)
+            if response.status_code == 404:
+                self.logger.warning(f"Sitemap host {sitemap_host} returned 404 error")
+                return (sitemap_host, False)
+            else:
+                self.logger.info(f"Sitemap host: {sitemap_host}\n")
+                return (sitemap_host, True)
+        else:
+            self.logger.warning("No sitemap host found")
+            return (sitemap_host, False)
 
     def get_sitemap_content(self, sitemap_host):
-        self.logger.info("Getting sitemap content\n")
-        urls = []
 
-        def process_sitemap(host):
-            if not host:
-                return
+        self.logger.info("Getting sitemap links\n")
+        urls = set()
+        try:
+            def process_sitemap(host):
+                nonlocal urls
+                if not host:
+                    return
 
-            response = self.session.get(host)
-            if response.status_code != 200:
-                self.logger.error(f"Error getting sitemap content: {response.status_code}\n")
-                return
+                try:
+                    response = requests.get(host)
+                    if response.status_code != 200:
+                        self.logger.error(f"Error getting sitemap content: {response.status_code}\n")
+                        return
 
-            root = Et.fromstring(response.content)
+                    response = requests.get(host)
+                    root = Et.fromstring(response.content)
 
-            for child in root:
-                for url in child:
-                    url_text = url.text
-                    if url_text.endswith(".xml"):
-                        process_sitemap(url_text)
-                    elif "http" in url_text:
-                        urls.append(url_text)
+                    self.logger.info(f"Processing sitemap: {host}\n")
 
-        process_sitemap(sitemap_host)
-        self.logger.info(f"Found URL: {len(urls)}\n")
-        return urls
+                    for child in root:
+                        for url in child:
+                            url_text = url.text
+                            if url_text and "http" in url_text:
+                                if "xml" in url_text:
+                                    self.logger.info(f"Found nested sitemap: {url_text}\n")
+                                    process_sitemap(url_text)
+                                else:
+                                    canonized_sitemap_url = self.canonize_url(url_text)
+                                    self.logger.info(f"Found URL: {canonized_sitemap_url}\n")
+                                    urls.add(canonized_sitemap_url)
+
+                except Exception as ex:
+                    self.logger.error(f"Error getting sitemap content: {ex}\n")
+
+            process_sitemap(sitemap_host)
+
+        except Exception as ex:
+            self.logger.error(f"Error getting sitemap content: {ex}\n")
+            return None
+
+        self.logger.info(f"Found {len(list(urls))} URLs\n")
+        return list(urls)
 
     def check_robot_txt(self, driver):
-
         self.logger.info("Checking robot.txt\n")
 
         robot_delay = None
@@ -158,14 +191,14 @@ class MyWebScraper:
         # Parse the robots.txt file
         rp = RobotExclusionRulesParser()
         rp.fetch(robots_url)
+
         # Check if the user agent is allowed to crawl the website
-        try:
-            rp.is_allowed('*', driver.current_url)
-            #print('User agent is allowed to crawl the website')
+        is_allowed = rp.is_allowed('*', driver.current_url)
+        if is_allowed:
             robot_allowance = "User agent is allowed to crawl the website"
-        except Exception as ex:
-            #print('User agent is not allowed to crawl the website')
-            print(ex)
+        else:
+            robot_allowance = "User agent is not allowed to crawl the website"
+
         self.logger.info(f"Robot.txt allowance: {robot_allowance}\n")
 
         # Get the crawl delay for the user agent
@@ -176,6 +209,7 @@ class MyWebScraper:
         self.logger.info(f"Robot.txt delay: {robot_delay}\n")
 
         return robot_delay, robot_allowance
+
 
     def parse_links(self, a_tags):
         self.logger.info("Parsing links\n")
@@ -259,94 +293,98 @@ class MyWebScraper:
 
 
     def process_url(self,url):
+        try:
+            options = webdriver.ChromeOptions()
+            options.add_argument('--headless')
+            options.add_argument('--disable-gpu')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--blink-settings=imagesEnabled=false')
+            #options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36')
+            options.add_argument('user-agent=fri-ieps-Lt-Colonel-Kilgore-team')
 
-        options = webdriver.ChromeOptions()
-        options.add_argument('--headless')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--blink-settings=imagesEnabled=false')
-        #options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36')
-        options.add_argument('user-agent=fri-ieps-Lt-Colonel-Kilgore-team')
+            driver_service = Service(self.WEB_DRIVER_LOCATION)
+            driver_service.start()
 
-        driver_service = Service(self.WEB_DRIVER_LOCATION)
-        driver_service.start()
+            driver = webdriver.Chrome(service=driver_service, options=options)
 
-        driver = webdriver.Chrome(service=driver_service, options=options)
+            sitemap_content = []
+            #save content of robots.txt to robot_txt_content
 
-        sitemap_content = []
 
-        driver.get(url + "/robots.txt")
+            driver.get(url + "robots.txt")
 
-        domain = urlparse(url).netloc
-        #visited_domains = self.get_visited_domains()
+            domain = urlparse(url).netloc
 
-        result_robot = {}
-        #if domain not in visited_domains:
-        self.logger.info("Domain already visited\n")
-        sitemap_host = self.get_sitemap_host(driver)
-        sitemap_content = self.get_sitemap_content(sitemap_host)
-        robot_delay, robot_allowance = self.check_robot_txt(driver)
+            #visited_domains = self.get_visited_domains()
 
-        result_robot = {
-                'domain': domain,
-                'sitemap_host': sitemap_host,
-                'robot_delay': robot_delay,
-                'robot_allowance': robot_allowance,
-                'sitemap_content': sitemap_content,
-        }
-        if robot_delay is not None:
-            self.TIMEOUT = max(self.TIMEOUT, robot_delay)
+            result_robot = {}
+            #if domain not in visited_domains:
+            self.logger.info("Domain already visited\n")
+            robot_txt_content = driver.page_source
+            sitemap_host = self.get_sitemap_host(driver)
+            sitemap_content = self.get_sitemap_content(sitemap_host[0])
+            robot_delay, robot_allowance = self.check_robot_txt(driver)
 
-        time.sleep(self.TIMEOUT)
-
-        status_code = self.session.get(url).status_code if not self.check_binary(url) else ""
-
-        if self.check_binary(url):
-            self.logger.info("Binary content found\n")
-            result_parse = {
-                'url': url,
-                'html': "",
-                'httpStatusCode': status_code,
-                'accessedTime': datetime.now().isoformat(),
-                'pageType': "BINARY",
-                'pageTypeCode': self.found_bin
+            result_robot = {
+                    'domain': domain,
+                    'robot_txt_content': robot_txt_content,
+                    'sitemap_host_content': sitemap_host,
+                    'robot_delay': robot_delay,
+                    'robot_allowance': robot_allowance,
+                    'sitemap_content_links': sitemap_content,
             }
-            driver.close()
-        else:
-            driver.get(url)
 
-            a_tags = driver.find_elements(By.TAG_NAME, "a")
-            imgs = driver.find_elements(By.TAG_NAME, "img")
-            html = driver.page_source
+            if robot_delay is not None:
+                self.TIMEOUT = max(self.TIMEOUT, robot_delay)
 
-            self.logger.info("HTML content found\n")
-            links = self.parse_links(a_tags)
-            img = self.parse_img(imgs)
-            html_hash = self.hash_html(html)
+            time.sleep(self.TIMEOUT)
 
-            links_all = []
+            status_code = self.session.get(url).status_code if not self.check_binary(url) else ""
 
-            for url in sitemap_content:
-                if url not in links:
-                    links_all.append(url)
+            if self.check_binary(url):
+                self.logger.info("Binary content found\n")
+                result_parse = {
+                    'url': url,
+                    'html': "",
+                    'httpStatusCode': status_code,
+                    'accessedTime': datetime.now().isoformat(),
+                    'pageType': "BINARY",
+                    'pageTypeCode': self.found_bin
+                }
+                driver.close()
+            else:
+                driver.get(url)
 
-            driver.close()
-            result_parse = {
-                'url': url,
-                'html': html,
-                'img': img,
-                'links': links,
-                'pageType': "HTML",
-                'httpStatusCode': status_code,
-                'accessedTime': datetime.now().isoformat(),
-                'hash': html_hash,
-                'links_all': links_all
-            } #if html_hash in self.get_hashes_from_frontier() else {
-                #'url': url,
-                #'warning': 'This page has been parsed.'
-            #}
-        return result_robot, result_parse
+                a_tags = driver.find_elements(By.TAG_NAME, "a")
+                imgs = driver.find_elements(By.TAG_NAME, "img")
+                html = driver.page_source
+
+                self.logger.info("HTML content found\n")
+                links = self.parse_links(a_tags)
+                img = self.parse_img(imgs)
+                html_hash = self.hash_html(html)
+
+                driver.close()
+                result_parse = {
+                    'url': url,
+                    'html': html,
+                    'img': img,
+                    'links': links,
+                    'pageType': "HTML",
+                    'httpStatusCode': status_code,
+                    'accessedTime': datetime.now().isoformat(),
+                    'hash': html_hash,
+
+                } #if html_hash in self.get_hashes_from_frontier() else {
+                    #'url': url,
+                    #'warning': 'This page has been parsed.'
+                #}
+            return result_robot, result_parse
+
+        except Exception as e:
+            self.logger.error(f"Error processing URL {url}: {e}\n")
+            return {'url': url, 'error': str(e)}
 
     def main(self, urls):
 
