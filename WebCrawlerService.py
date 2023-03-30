@@ -8,7 +8,6 @@ import requests
 import os
 import time
 from datetime import datetime
-import re
 import xml.etree.ElementTree as Et
 from robotexclusionrulesparser import RobotExclusionRulesParser
 import validators
@@ -33,6 +32,7 @@ class HashesError(MyProjectError):
     pass
 
 class MyWebScraper:
+
     AUTH = ("Hanoi", "I_love_the_smell_of_napalm_in_the_morning")
 
     WEB_DRIVER_LOCATION = None
@@ -265,6 +265,7 @@ class MyWebScraper:
         options.add_argument('--disable-gpu')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--blink-settings=imagesEnabled=false')
         #options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36')
         options.add_argument('user-agent=fri-ieps-Lt-Colonel-Kilgore-team')
 
@@ -277,7 +278,6 @@ class MyWebScraper:
 
         driver.get(url + "/robots.txt")
 
-        time.sleep(self.TIMEOUT)
         domain = urlparse(url).netloc
         #visited_domains = self.get_visited_domains()
 
@@ -295,8 +295,10 @@ class MyWebScraper:
                 'robot_allowance': robot_allowance,
                 'sitemap_content': sitemap_content,
         }
+        if robot_delay is not None:
+            self.TIMEOUT = max(self.TIMEOUT, robot_delay)
 
-        #dodja robot text da upošteva dilay in allowance
+        time.sleep(self.TIMEOUT)
 
         status_code = self.session.get(url).status_code if not self.check_binary(url) else ""
 
