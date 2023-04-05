@@ -130,6 +130,7 @@ class Frontier:
             if duplicate:
                 cur.execute('UPDATE crawldb.page SET'
                             f" page_type_code = 'DUPLICATE', "
+                            f" site_id = {site_id}, "
                             f" http_status_code = {input_json.get('httpStatusCode')}, "
                             f" accessed_time = '{input_json.get('accessedTime')}', " 
                             f" hash = '{input_json.get('hash')}' WHERE "
@@ -139,9 +140,9 @@ class Frontier:
 
                 cur.execute(f"INSERT INTO link (from_page, to_page) VALUES ({id_of_original},{dup_page_id})")
             else:
-
                 cur.execute('UPDATE crawldb.page SET'
                             f" page_type_code = '{input_json.get('pageType')}', "
+                            f" site_id = {site_id}, "
                             f" html_content = '{input_json.get('html_content')}', "
                             f" http_status_code = {input_json.get('httpStatusCode')}, "
                             f" accessed_time = '{input_json.get('accessedTime')}', " 
@@ -150,13 +151,26 @@ class Frontier:
 
 
                 page_id = cur.fetchone()[0]
-                print(page_id)
+                #print(page_id)
 
 
                 query = "INSERT INTO crawldb.page (url, page_type_code) VALUES " + ",".join([f"('{link}', 'FRONTIER')" for link in input_json.get('links')]) + " ON CONFLICT (url) DO NOTHING;"
                 #print(query)
                 cur.execute(query)
 
+        if input_json.get('pageType') == "BINARY":
+            cur.execute('UPDATE crawldb.page SET'
+                        f" page_type_code = '{input_json.get('pageType')}', "
+                        f" site_id = {site_id}, "
+                        f" http_status_code = {input_json.get('httpStatusCode')}, "
+                        f" accessed_time = '{input_json.get('accessedTime')}', "
+                        f" hash = '{input_json.get('hash')}' WHERE "
+                        f" url = '{input_json.get('url')}' RETURNING id")
+            page_id = cur.fetchone()[0]
+            #print(page_id)
+
+            cur.execute("INSERT INTO crawldb.page_data (page_id, data_type_code) "
+                        f"VALUES ({page_id}, '{input_json.get('pageTypeCode')}' )")
 
         cur.close()
 
