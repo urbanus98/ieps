@@ -6,22 +6,27 @@
 # /hashes - pridobi vse hashe
 
 
-
 import os
 import threading
 import psycopg2
 from flask import Flask, request, jsonify, make_response
 import logging
 from io import StringIO
+from flask_httpauth import HTTPBasicAuth
+from urllib.parse import urlparse
 
 conn = psycopg2.connect(host="31.15.143.42", dbname="crawldb", user="ieps", password="spiderman", port=45433)
 conn.autocommit = True
 
 lock = threading.Lock()
 
+basic_auth = HTTPBasicAuth()
+
+
+# making requests: requests.get(ENDPOINT+"/db/get_values",verify=False, auth= AUTH).json())
+
 
 class Frontier:
-
     def __init__(self) -> None:
         self.app = Flask("Frontier")
         self.app.route('/visited_domains', methods=['GET'])(self.visited_domains)
@@ -47,7 +52,7 @@ class Frontier:
     def visited_domains(self):
 
         cur = conn.cursor()
-        cur.execute("SELECT domain FROM frontier.domains")
+        cur.execute("SELECT domain FROM crawldb.site")
         db_response = cur.fetchall()
         #print(db_response)
         cur.close()
@@ -58,71 +63,104 @@ class Frontier:
     def new_url(self):
         cur = conn.cursor()
         # return first link in frontier
-        cur.execute("SELECT * FROM frontier.waiting_links LIMIT 1")
+        cur.execute("SELECT url FROM crawldb.page WHERE page_type_code = 'FRONTIER' LIMIT 1")
         db_response = cur.fetchall()
-        #print(db_response)
-        id = db_response[0][0]
-        # move link from waiting to in progress links
-        cur.execute('WITH selection AS ( '
-                    'DELETE FROM frontier.waiting_links '
-                    f'WHERE link_id = {id} '
-                    'RETURNING  *) '
-                    'INSERT INTO frontier.inprogress_links '
-                    'SELECT * FROM selection;')
+        print(db_response)
         cur.close()
-        response = make_response(jsonify(db_response[0][1]), 200)
+        response = make_response(jsonify(db_response), 200)
         return response
 
-    def save_domain(self):
-        input_json = request.get_json()
+    def save_domain(self, json):
+        #input_json = request.get_json()
+        input_json = json
         cur = conn.cursor()
+        cur.execute(f"SELECT id FROM crawldb.site WHERE domain = '{input_json.get('domain')}'")
+        site_id = cur.fetchone()
 
-        cur.execute('INSERT INTO frontier.domain '
-                    '(domain, robot_txt_content, sitemap_host_content, '
-                    'robot_delay, robot_allowance, sitemap_content_links) '
-                    f"VALUES ( {input_json.get('domain')}, {input_json.get('robot_txt_content')}, "
-                    f" {input_json.get('sitemap_host_content')}, {input_json.get('robot_delay')}, "
-                    f" {input_json.get('robot_allowance')}, {input_json.get('sitemap_content_links')} )")
+        if site_id is not None:
+            site_id = site_id[0]
 
-        cur.execute('INSERT INTO crawldb.site '
-                    '(domain, robots_content, sitemap_content '
-                    f"VALUE ( {input_json.get('domain')}, {input_json.get('robot_txt_content')}, "
-                    f"{input_json.get('sitemap_content_links')} )")
+        #print(site_id)
+        if site_id is None:
+            cur.execute('INSERT INTO crawldb.site '
+                        '(domain, robots_content, sitemap_content ) '
+                        f"VALUES ( '{input_json.get('domain')}', '{input_json.get('robot_txt_content')}', "
+                        f"'{input_json.get('sitemap_content_links')}' ) ON CONFLICT (domain) DO NOTHING RETURNING id")
+
+            if site_id is not None:
+                site_id = site_id[0]
+        #print(site_id)
 
         cur.close()
 
-        response = make_response("Domain saved",200)
+
+        response = make_response(jsonify({"site_id": site_id}), 200)
 
         return response
 
     def save_page(self):
-        input_json = request.get_json()
+        all_json = request.get_json()
+        input_json = all_json[0][1]
+        site_json = all_json[0][0]
+        #print(site_json)
+
+        response = self.save_domain(site_json)
+        site_id = response.get_json().get('site_id')
+
+        cur = conn.cursor()
 
         if input_json.get('pageType') == "HTML":
-            cur = conn.cursor()
 
-            try:
-                cur.execute('SELECT id FROM crawldb.site WHERE '
-                            f"domain = {input_json.get('domain')}")
-                site_id = cur.fetchall()[0]
+            cur.execute("SELECT id, hash FROM crawldb.page")
+            hashes = cur.fetchall()
+            #print(hashes)
 
-                cur.execute('INSERT INTO crawldb.page '
-                            '(site_id, page_type_code, url, '
-                            'html_content, http_status_code, '
-                            'accessed_time, hash) '
-                            f"VALUE ( {site_id}, {input_json.get('pageType')}, {input_json.get('pageType')}, "
-                            f"{input_json.get('url')}, {input_json.get('html_content')}, "
-                            f"{input_json.get('httpStatusCode')}, {input_json.get('accessedTime')}, "
-                            f"{input_json.get('hash')} )")
+            new_hash = input_json.get('hash')
 
-            except Exception as e:
-                self.logger.error(f'Error saving page: {e}\n')
+            id_of_original = None
 
-            for link in input_json.get('links'):
-                cur.execute(f"INSERT INTO frontier.waiting_links VALUES ( {link})")
+            duplicate = False
+            for hash in hashes:
+                if hash[1] == new_hash:
+                    duplicate = True
+                    id_of_original = hash[0]
 
 
-        pass
+            #print(duplicate, id_of_original)
+            if duplicate:
+                cur.execute('UPDATE crawldb.page SET'
+                            f" page_type_code = 'DUPLICATE', "
+                            f" http_status_code = {input_json.get('httpStatusCode')}, "
+                            f" accessed_time = '{input_json.get('accessedTime')}', " 
+                            f" hash = '{input_json.get('hash')}' WHERE "
+                            f" url = '{input_json.get('url')}' RETURNING id" )
+
+                dup_page_id = cur.fetchone()[0]
+
+                cur.execute(f"INSERT INTO link (from_page, to_page) VALUES ({id_of_original},{dup_page_id})")
+            else:
+
+                cur.execute('UPDATE crawldb.page SET'
+                            f" page_type_code = '{input_json.get('pageType')}', "
+                            f" html_content = '{input_json.get('html_content')}', "
+                            f" http_status_code = {input_json.get('httpStatusCode')}, "
+                            f" accessed_time = '{input_json.get('accessedTime')}', " 
+                            f" hash = '{input_json.get('hash')}' WHERE "
+                            f" url = '{input_json.get('url')}' RETURNING id")
+
+
+                page_id = cur.fetchone()[0]
+                print(page_id)
+
+
+                query = "INSERT INTO crawldb.page (url, page_type_code) VALUES " + ",".join([f"('{link}', 'FRONTIER')" for link in input_json.get('links')]) + " ON CONFLICT (url) DO NOTHING;"
+                #print(query)
+                cur.execute(query)
+
+
+        cur.close()
+
+        return make_response("SUCCESS", 200)
 
     def hashes(self):
         cur = conn.cursor()
