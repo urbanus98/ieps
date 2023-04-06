@@ -23,7 +23,7 @@ lock = threading.Lock()
 basic_auth = HTTPBasicAuth()
 
 
-# making requests: requests.get(ENDPOINT+"/db/get_values",verify=False, auth= AUTH).json())
+# making requests: requests.get(ENDPOINT+"/db/get_values",verify=False, auth = AUTH).json())
 
 
 class Frontier:
@@ -42,6 +42,8 @@ class Frontier:
         self.logger = logging.getLogger('web_scraper')
         self.logger.setLevel(logging.DEBUG)
         self.logger.addHandler(log_handler)
+
+
 
     def start(self, host='0.0.0.0', port=49500):
         try:
@@ -63,11 +65,16 @@ class Frontier:
     def new_url(self):
         cur = conn.cursor()
         # return first link in frontier
-        cur.execute("SELECT url FROM crawldb.page WHERE page_type_code = 'FRONTIER' LIMIT 1")
+        cur.execute("SELECT id, url FROM crawldb.page WHERE page_type_code = 'FRONTIER' LIMIT 1")
+
         db_response = cur.fetchall()
-        print(db_response)
+        #print(db_response)
+        page_id = db_response[0][0]
+        #print(page_id)
+        cur.execute(f"UPDATE crawldb.page SET page_type_code = 'PARSING' WHERE id = {page_id};")
         cur.close()
-        response = make_response(jsonify(db_response), 200)
+        link = {"link": db_response[0][1]}
+        response = make_response(jsonify(link), 200)
         return response
 
     def save_domain(self, json):
@@ -100,77 +107,95 @@ class Frontier:
 
     def save_page(self):
         all_json = request.get_json()
-        input_json = all_json[0][1]
-        site_json = all_json[0][0]
-        #print(site_json)
-
-        response = self.save_domain(site_json)
-        site_id = response.get_json().get('site_id')
 
         cur = conn.cursor()
 
-        if input_json.get('pageType') == "HTML":
+        if 'error' in all_json:
+            cur.execute('DELETE FROM crawldb.page WHERE'
+                        f" url = '{all_json.get('url')}'")
+        else:
+            #try:
 
-            cur.execute("SELECT id, hash FROM crawldb.page")
-            hashes = cur.fetchall()
-            #print(hashes)
+            input_json = all_json[0][1]
+            site_json = all_json[0][0]
+            #print(site_json)
 
-            new_hash = input_json.get('hash')
+            response = self.save_domain(site_json)
+            site_id = response.get_json().get('site_id')
 
-            id_of_original = None
+            if input_json.get('pageType') == "HTML":
 
-            duplicate = False
-            for hash in hashes:
-                if hash[1] == new_hash:
-                    duplicate = True
-                    id_of_original = hash[0]
+                cur.execute("SELECT id, hash FROM crawldb.page")
+                hashes = cur.fetchall()
+                #print(hashes)
+
+                new_hash = input_json.get('hash')
+
+                id_of_original = None
+
+                duplicate = False
+                for hash in hashes:
+                    if hash[1] == new_hash:
+                        duplicate = True
+                        id_of_original = hash[0]
+
+                #print(duplicate, id_of_original)
+                if duplicate:
+                    cur.execute('UPDATE crawldb.page SET'
+                                f" page_type_code = 'DUPLICATE', "
+                                f" site_id = {site_id}, "
+                                f" http_status_code = {input_json.get('httpStatusCode')}, "
+                                f" accessed_time = '{input_json.get('accessedTime')}', " 
+                                f" hash = '{input_json.get('hash')}' WHERE "
+                                f" url = '{input_json.get('url')}' RETURNING id" )
+
+                    dup_page_id = cur.fetchone()[0]
+
+                    cur.execute(f"INSERT INTO link (from_page, to_page) VALUES ({id_of_original},{dup_page_id})")
+                else:
+                    cur.execute('UPDATE crawldb.page SET'
+                                f" page_type_code = '{input_json.get('pageType')}', "
+                                f" site_id = {site_id}, "
+                                f" html_content = '{input_json.get('html_content')}', "
+                                f" http_status_code = {input_json.get('httpStatusCode')}, "
+                                f" accessed_time = '{input_json.get('accessedTime')}', " 
+                                f" hash = '{input_json.get('hash')}' WHERE "
+                                f" url = '{input_json.get('url')}' RETURNING id")
+
+                    page_id = cur.fetchone()[0]
+
+                    img_query = "INSERT INTO image (page_id, content_type, filename, accessed_time) VALUES " + ",".join(
+                        [f"({page_id}, '{img.get('contentType')}', '{img.get('filename')}', '{img.get('accessedTime')}' );" for img in input_json.get('img')])
+
+                    cur.execute(img_query)
+
+                    url_query = "INSERT INTO crawldb.page (url, page_type_code) VALUES " + ",".join([f"('{link}', 'FRONTIER')" for link in input_json.get('links')]) + " ON CONFLICT (url) DO NOTHING;"
+                    #print(query)
+                    cur.execute(url_query)
+
+            elif input_json.get('pageType') == "BINARY":
+                if input_json.get('pageTypeCode') in ["DOC", "DOCX", "PDF", "PPT", "PPTX"]:
+                    cur.execute('UPDATE crawldb.page SET'
+                                f" page_type_code = '{input_json.get('pageType')}', "
+                                f" site_id = {site_id}, "
+                                f" http_status_code = {input_json.get('httpStatusCode')}, "
+                                f" accessed_time = '{input_json.get('accessedTime')}', "
+                                f" hash = '{input_json.get('hash')}' WHERE "
+                                f" url = '{input_json.get('url')}' RETURNING id")
+                    page_id = cur.fetchone()[0]
+                    #print(page_id)
+
+                    cur.execute("INSERT INTO crawldb.page_data (page_id, data_type_code) "
+                                f"VALUES ({page_id}, '{input_json.get('pageTypeCode')}' )")
+                else:
+                    cur.execute('DELETE FROM crawldb.page WHERE'
+                                f" url = '{input_json.get('url')}'")
+            #except:
+            #    print("error")
+            #    cur.execute('DELETE FROM crawldb.page WHERE'
+            #                f" url = '{all_json[0][1].get('url')}'")
 
 
-            #print(duplicate, id_of_original)
-            if duplicate:
-                cur.execute('UPDATE crawldb.page SET'
-                            f" page_type_code = 'DUPLICATE', "
-                            f" site_id = {site_id}, "
-                            f" http_status_code = {input_json.get('httpStatusCode')}, "
-                            f" accessed_time = '{input_json.get('accessedTime')}', " 
-                            f" hash = '{input_json.get('hash')}' WHERE "
-                            f" url = '{input_json.get('url')}' RETURNING id" )
-
-                dup_page_id = cur.fetchone()[0]
-
-                cur.execute(f"INSERT INTO link (from_page, to_page) VALUES ({id_of_original},{dup_page_id})")
-            else:
-                cur.execute('UPDATE crawldb.page SET'
-                            f" page_type_code = '{input_json.get('pageType')}', "
-                            f" site_id = {site_id}, "
-                            f" html_content = '{input_json.get('html_content')}', "
-                            f" http_status_code = {input_json.get('httpStatusCode')}, "
-                            f" accessed_time = '{input_json.get('accessedTime')}', " 
-                            f" hash = '{input_json.get('hash')}' WHERE "
-                            f" url = '{input_json.get('url')}' RETURNING id")
-
-
-                page_id = cur.fetchone()[0]
-                #print(page_id)
-
-
-                query = "INSERT INTO crawldb.page (url, page_type_code) VALUES " + ",".join([f"('{link}', 'FRONTIER')" for link in input_json.get('links')]) + " ON CONFLICT (url) DO NOTHING;"
-                #print(query)
-                cur.execute(query)
-
-        if input_json.get('pageType') == "BINARY":
-            cur.execute('UPDATE crawldb.page SET'
-                        f" page_type_code = '{input_json.get('pageType')}', "
-                        f" site_id = {site_id}, "
-                        f" http_status_code = {input_json.get('httpStatusCode')}, "
-                        f" accessed_time = '{input_json.get('accessedTime')}', "
-                        f" hash = '{input_json.get('hash')}' WHERE "
-                        f" url = '{input_json.get('url')}' RETURNING id")
-            page_id = cur.fetchone()[0]
-            #print(page_id)
-
-            cur.execute("INSERT INTO crawldb.page_data (page_id, data_type_code) "
-                        f"VALUES ({page_id}, '{input_json.get('pageTypeCode')}' )")
 
         cur.close()
 
