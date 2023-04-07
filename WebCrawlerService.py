@@ -6,6 +6,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 import requests
 import os
+import re
 import time
 from datetime import datetime
 import xml.etree.ElementTree as Et
@@ -13,11 +14,16 @@ from robotexclusionrulesparser import RobotExclusionRulesParser
 import validators
 import hashlib
 import logging
+import urllib
 from io import StringIO
 from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor
 
-
+from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import StaleElementReferenceException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions
 
 class MyProjectError(Exception):
     """Exception class from which every exception in this library will derive."""
@@ -41,7 +47,7 @@ class MyWebScraper:
     FRONTIER_SERVER_URL = 'http://127.0.0.1:8000'
     
     found_bin = ""
-    domain_visited = False
+    domain_visited = 0
 
 
     def __init__(self):
@@ -71,11 +77,10 @@ class MyWebScraper:
             self.logger.error(f'Error starting the Flask app: {e}\n')
 
     def scrape(self):
+        print(request.get_json())
         input_messages = request.get_json().get('messages', [])
-        print(input_messages)
-        print('visited:')
-        print(request.get_json().get('visitedDomain'))
-        self.domain_visited = request.get_json().get('visitedDomain')
+        # self.domain_visited = bool(request.get_json().get('visitedDomain'))
+        self.domain_visited = int(request.get_json().get('visitedDomain'))
         results = []
         for input_value in input_messages:
             self.logger.info(f'Starting scrape for URL: {input_value}\n')
@@ -224,6 +229,7 @@ class MyWebScraper:
         #od tuki naprej se neki sfuka z linki in pol ne dela
 
         for link in driver.find_elements(By.TAG_NAME, "a"):
+                        
             href = link.get_attribute("href")
             if href is not None and validators.url(href):
                 canonized_href = self.canonize_url(href)
@@ -314,29 +320,42 @@ class MyWebScraper:
             driver_service.start()
 
             driver = webdriver.Chrome(service=driver_service, options=options)
-
+            self.TIMEOUT = 5
             sitemap_content = []
             #save content of robots.txt to robot_txt_content
 
 
             driver.get(url + "/robots.txt")
-            # print(url)
+
+
+            # html = driver.page_source
+            # cleantext = re.sub(re.compile('<.*?>'), '', html)
+
             domain = urlparse(url).netloc
 
-            # result_robot = {}
-            
-            if not self.domain_visited:
-                robot_txt_content = driver.page_source
-                sitemap_host = self.get_sitemap_host(driver)
-                sitemap_content = self.get_sitemap_content(sitemap_host[0])
-            else:
+            print('parsing robots.txt')
+
+            rc = ""
+            try:
+                # response = urllib.request.urlopen(url + "/robots.txt")
+                response = requests.get('https://' + domain + "/robots.txt")
+                rc = response.text
+            except urllib.error.HTTPError as e:
+                print("Error retrieving robots.txt file" + e.reason)
+
+            print(self.domain_visited)
+            if self.domain_visited == 1:
                 robot_txt_content = ""
-                # robot_txt_content = request.get(url + "/robots.txt").text
                 sitemap_content = []
                 sitemap_host = []
+                print('Domain already visited')
                 self.logger.info("Domain already visited\n")
-                print('domain already visited')
-
+            else:
+                robot_txt_content = rc
+                sitemap_host = self.get_sitemap_host(driver)
+                sitemap_content = self.get_sitemap_content(sitemap_host[0])
+                print('Domain not already visited')
+                
             robot_delay, robot_allowance = self.check_robot_txt(driver)
 
             print('got through robot parsing')
@@ -355,6 +374,8 @@ class MyWebScraper:
 
             time.sleep(self.TIMEOUT)
 
+            
+
             status_code = self.session.get(url).status_code if not self.check_binary(url) else ""
 
             if self.check_binary(url):
@@ -371,7 +392,10 @@ class MyWebScraper:
             else:
                 driver.get(url)
 
-                print('got to page parsing')
+                # if self.domain_visited == 0:
+                #     time.sleep(1)
+                # else:
+                time.sleep(0.5)
 
                 html = driver.page_source
 
@@ -379,7 +403,6 @@ class MyWebScraper:
                 self.logger.info("HTML content found\n")
 
                 links = self.parse_links(driver)
-                print('got through link parsing')
                 # print(links)
 
                 img = self.parse_img(driver)
@@ -411,7 +434,7 @@ class MyWebScraper:
     def main(self, urls):
 
         results = []
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=2) as executor:
             futures = {executor.submit(self.process_url, url): url for url in urls}
             for future in concurrent.futures.as_completed(futures):
                 url = futures[future]

@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 
 
-FRONTIER_ENDPOINT="https://172.23.3.4:49500"
+FRONTIER_ENDPOINT="https://31.15.143.42:49500"
 AUTH = ("Crawler1", "&*qRyQ-7dMCX$S9&")
 
 last_request_time = {}
@@ -30,7 +30,7 @@ def get_and_delay_domain(url):
 
 def scrape(json):
     try:
-        return requests.post("http://127.0.0.1:5005/scrape", json=json, timeout=30)
+        return requests.post("http://127.0.0.1:5000/scrape", json=json, timeout=30)
     except Exception as e:
         print("Error when scraping ", json)
 
