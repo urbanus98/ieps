@@ -3,12 +3,11 @@ import json
 import time
 from urllib.parse import urlparse
 import urllib3
+from requests.models import Response
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-
-
-FRONTIER_ENDPOINT="https://31.15.143.42:49500"
-AUTH = ("Crawler1", "&*qRyQ-7dMCX$S9&")
+FRONTIER_ENDPOINT="https://172.23.3.4:49500"
+AUTH = ("Crawler2", "&*qRyQ-7dMCX$S9&")
 
 last_request_time = {}
 domain_delays = {}
@@ -30,11 +29,12 @@ def get_and_delay_domain(url):
 
     return {"messages": [url], "domain": domain, "visitedDomain": visited_domain}
 
-def scrape(json):
+def scrape(scrape_json):
     try:
-        return requests.post("http://127.0.0.1:5000/scrape", json=json, timeout=30)
+        return requests.post("http://127.0.0.1:5000/scrape", json=scrape_json, timeout=50)
     except Exception as e:
         print("Error when scraping ", json)
+        return None
 
 def save_page(json):
     return requests.post(FRONTIER_ENDPOINT + "/save_page", verify=False, auth=AUTH, json=json, timeout=30)
@@ -48,22 +48,21 @@ if __name__=='__main__':
         scrape_dict = get_and_delay_domain(url)
         print("Sending scrape request: ", scrape_dict)
         scrape_result = scrape(scrape_dict)
+        if scrape_result is not None:
+            if not scrape_dict.get('visitedDomain'):
+                print(scrape_result.json())
+                if ('error') in scrape_result.json()[0]:
+                    print("Error when parsing page, deleting page from frontier.")
 
-        if not scrape_dict.get('visitedDomain'):
-            print(scrape_result.json())
-            if ('error') in scrape_result.json()[0]:
-                print("Error when parsing page, deleting page from frontier.")
-
-            else:
-                domain_data = scrape_result.json()[0][0]
-                delay = domain_data.get('robot_delay')
-                domain = domain_data.get('domain')
-                if delay is not None:
-                    domain_delays['domain'] = delay
                 else:
-                    domain_delays['domain'] = 5
-                print("Saved delay for domain", domain, delay)
-                print("Got scrape result, saving site")
-        save_page_result = save_page(scrape_result.json())
-        print("Save page result: ", save_page_result.json())
-
+                    domain_data = scrape_result.json()[0][0]
+                    delay = domain_data.get('robot_delay')
+                    domain = domain_data.get('domain')
+                    if delay is not None:
+                        domain_delays['domain'] = delay
+                    else:
+                        domain_delays['domain'] = 5
+                    print("Saved delay for domain", domain, delay)
+                    print("Got scrape result, saving site")
+            save_page_result = save_page(scrape_result.json())
+            print("Save page result: ", save_page_result.json())
