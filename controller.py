@@ -8,16 +8,25 @@ from urllib.parse import urlparse
 FRONTIER_ENDPOINT="https://172.23.3.4:49500"
 AUTH = ("Crawler1", "&*qRyQ-7dMCX$S9&")
 
-visited_domains = {}
+last_request_time = {}
 domain_delays = {}
-
 
 
 def get_new_url():
     return requests.get(FRONTIER_ENDPOINT+"/new_url", verify=False, auth=AUTH,timeout=30).json()
 
-def get_visited_domains():
-    return
+def get_and_delay_domain(url):
+    domain = urlparse(url).netloc
+    rate_limit = domain_delays.get(domain, 5)
+    visited_domain = False
+    if domain in last_request_time:
+        visited_domain = True
+        time_since_last_request = time.time() - last_request_time[domain]
+        if time_since_last_request < rate_limit:
+            time.sleep(rate_limit - time_since_last_request)
+    last_request_time[domain] = time.time()
+
+    return {"messages": [url], "domain": domain, "visitedDomain": visited_domain}
 
 def scrape(json):
     try:
@@ -33,14 +42,21 @@ if __name__=='__main__':
     while True:
         url_json = get_new_url()
         print("Got new url: ", url_json)
-        url = url_json.get('')
-        domain = urlparse(u).netloc
+        url = url_json.get('link')
+        scrape_dict = get_and_delay_domain(url)
         print("Sending scrape request: ", scrape_dict)
         scrape_result = scrape(scrape_dict)
+
+        if not scrape_dict.get('visitedDomain'):
+            domain_data = scrape_result.json()[0][0]
+            delay = domain_data.get('robot_delay')
+            domain = domain_data.get('domain')
+            domain_delays['domain'] = delay
+            print("Saved delay for domain", domain, delay)
+
         print("Got scrape result, saving page")
         save_page_result = save_page(scrape_result.json())
         print("Save page result: ", save_page_result.json())
-        time.sleep(5)
 
 
 
