@@ -24,7 +24,7 @@ def get_and_delay_domain(url):
     if domain in domain_delays:
         visited_domain = True
         timeout = 20
-        rate_limit = domain_delays.get(domain)
+        rate_limit = domain_delays.get(domain, 5)
     else:
         visited_domain = False
         timeout = 300
@@ -78,12 +78,13 @@ if __name__=='__main__':
                 else:
                     domain_data = scrape_result.json()[0][0]
                     delay = domain_data.get('robot_delay')
+                    print(delay)
                     domain = domain_data.get('domain')
-                    if delay is not None:
+                    if delay is not None and delay != 'None':
                         domain_delays['domain'] = delay
                     else:
                         domain_delays['domain'] = 5
                     print("Saved delay for domain", domain, delay)
                     print("Got scrape result, saving site")
             save_page_result = save_page(scrape_result.json())
-            print("Save page result: ", save_page_result.json())
+            print("Save page result: ", save_page_result)
