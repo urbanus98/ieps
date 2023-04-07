@@ -7,6 +7,7 @@
 
 
 import os
+import re
 import threading
 import psycopg2
 from flask import Flask, request, jsonify, make_response
@@ -169,7 +170,14 @@ class Frontier:
 
                     cur.execute(img_query)
 
-                    url_query = "INSERT INTO crawldb.page (url, page_type_code) VALUES " + ",".join([f"('{link}', 'FRONTIER')" for link in input_json.get('links')]) + " ON CONFLICT (url) DO NOTHING;"
+                    links = input_json.get('links')
+                    filtered_links = []
+                    for link in links:
+                        parsed_link = urlparse(link)
+                        if parsed_link.netloc.endswith(".gov.si"):
+                            filtered_links.append(link)
+
+                    url_query = "INSERT INTO crawldb.page (url, page_type_code) VALUES " + ",".join([f"('{link}', 'FRONTIER')" for link in filtered_links]) + " ON CONFLICT (url) DO NOTHING;"
                     #print(query)
                     cur.execute(url_query)
 
