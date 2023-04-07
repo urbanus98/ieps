@@ -3,25 +3,34 @@ import json
 import time
 from urllib.parse import urlparse
 import urllib3
-from requests.models import Response
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-FRONTIER_ENDPOINT="https://172.23.3.4:49500"
-AUTH = ("Crawler2", "&*qRyQ-7dMCX$S9&")
+FRONTIER_ENDPOINT="https://31.15.143.42:49500"
+AUTH = ("Crawler1", "&*qRyQ-7dMCX$S9&")
+
+timeout = 300
 
 last_request_time = {}
 domain_delays = {}
 
+def get_visited_domains():
+    return requests.get(FRONTIER_ENDPOINT + "/visited_domains", verify=False, auth=AUTH, timeout=30)
 
 def get_new_url():
     return requests.get(FRONTIER_ENDPOINT+"/new_url", verify=False, auth=AUTH,timeout=30).json()
 
 def get_and_delay_domain(url):
     domain = urlparse(url).netloc
-    rate_limit = domain_delays.get(domain, 5)
-    visited_domain = False
-    if domain in last_request_time:
+    if domain in domain_delays:
         visited_domain = True
+        timeout = 20
+        rate_limit = domain_delays.get(domain)
+    else:
+        visited_domain = False
+        timeout = 300
+        rate_limit = 5
+
+    if domain in last_request_time:
         time_since_last_request = time.time() - last_request_time[domain]
         if time_since_last_request < rate_limit:
             time.sleep(rate_limit - time_since_last_request)
@@ -41,6 +50,18 @@ def save_page(json):
 
 
 if __name__=='__main__':
+    visited_domains = get_visited_domains().json()
+    #print(visited_domains[0])
+
+    for domain in visited_domains:
+        #print(domain[0])
+        domain_name = domain[0]
+        domain_delay = domain[2]
+        #print(domain_name, domain_delay)
+        domain_delays[domain_name] = domain_delay
+    print(domain_delays)
+    time.sleep(500)
+
     while True:
         url_json = get_new_url()
         print("Got new url: ", url_json)
