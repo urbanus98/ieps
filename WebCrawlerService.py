@@ -6,7 +6,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 import requests
 import os
-import re
 import time
 from datetime import datetime
 import xml.etree.ElementTree as Et
@@ -18,12 +17,6 @@ import urllib
 from io import StringIO
 from urllib.parse import urlparse, urlunparse
 from concurrent.futures import ThreadPoolExecutor
-
-from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import StaleElementReferenceException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions
 
 class MyProjectError(Exception):
     """Exception class from which every exception in this library will derive."""
@@ -48,7 +41,6 @@ class MyWebScraper:
     
     found_bin = ""
     domain_visited = 0
-
 
     def __init__(self):
         self.app = Flask("MyWebScraper_number")
@@ -284,27 +276,6 @@ class MyWebScraper:
         self.logger.info("Hashing html\n")
         return hashlib.md5(html_content.encode('utf-8')).hexdigest()
 
-    def get_visited_domains(self):
-        self.logger.info("Getting visited domains\n")
-        response = requests.get(f'{self.FRONTIER_SERVER_URL}/visited_domains\n')
-        if response.status_code == 200:
-            self.logger.info("Got visited domains\n")
-            return set(response.json()['visited_domains'])
-        else:
-            self.logger.error(f"Error: Failed to fetch visited domains. Status code: {response.status_code}\n")
-            raise  VisitedDomainsError(f"Error: Failed to fetch visited domains. Status code: {response.status_code}")
-
-    def get_hashes_from_frontier(self):
-        self.logger.info("Getting hashes from frontier\n")
-        response = requests.get(f'{self.FRONTIER_SERVER_URL}/hashes')
-        if response.status_code == 200:
-            self.logger.info("Got hashes from frontier\n")
-            return set(response.json()['hashes'])
-        else:
-            self.logger.error(f"Error: Failed to fetch hashes. Status code: {response.status_code}\n")
-            raise HashesError(f"Error: Failed to fetch hashes. Status code: {response.status_code}")
-
-
     def process_url(self,url):
         try:
             options = webdriver.ChromeOptions()
@@ -322,14 +293,8 @@ class MyWebScraper:
             driver = webdriver.Chrome(service=driver_service, options=options)
             self.TIMEOUT = 5
             sitemap_content = []
-            #save content of robots.txt to robot_txt_content
-
 
             driver.get(url + "/robots.txt")
-
-
-            # html = driver.page_source
-            # cleantext = re.sub(re.compile('<.*?>'), '', html)
 
             domain = urlparse(url).netloc
 
@@ -373,8 +338,6 @@ class MyWebScraper:
                 self.TIMEOUT = max(self.TIMEOUT, robot_delay)
 
             time.sleep(self.TIMEOUT)
-
-            
 
             status_code = self.session.get(url).status_code if not self.check_binary(url) else ""
 
@@ -421,10 +384,7 @@ class MyWebScraper:
                     'accessedTime': datetime.now().isoformat(),
                     'hash': html_hash,
 
-                } #if html_hash in self.get_hashes_from_frontier() else {
-                    #'url': url,
-                    #'warning': 'This page has been parsed.'
-                #}
+                }
             return result_robot, result_parse
 
         except Exception as e:
