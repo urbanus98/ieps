@@ -59,8 +59,8 @@ if __name__=='__main__':
         domain_delay = domain[2]
         #print(domain_name, domain_delay)
         domain_delays[domain_name] = domain_delay
-    print(domain_delays)
-    time.sleep(500)
+    #print(domain_delays)
+    #time.sleep(500)
 
     while True:
         url_json = get_new_url()
