@@ -1,5 +1,6 @@
 import requests
 import json
+import time
 
 FRONTIER_ENDPOINT="https://172.23.3.4:49500"
 AUTH = ("Crawler1", "&*qRyQ-7dMCX$S9&")
@@ -22,7 +23,7 @@ if __name__=='__main__':
         scrape_dict = {"messages": [url_json['link']]}
         scrape_result = scrape(scrape_dict)
         save_page(scrape_result.json())
-    
+        time.sleep(5)
 
 
 
