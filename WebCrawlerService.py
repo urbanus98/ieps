@@ -38,8 +38,10 @@ class MyWebScraper:
     WEB_DRIVER_LOCATION = None
     TIMEOUT = 5
     BIN_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx"]
-    found_bin = ""
     FRONTIER_SERVER_URL = 'http://127.0.0.1:8000'
+    
+    found_bin = ""
+    domain_visited = False
 
 
     def __init__(self):
@@ -70,6 +72,10 @@ class MyWebScraper:
 
     def scrape(self):
         input_messages = request.get_json().get('messages', [])
+        print(input_messages)
+        print('visited:')
+        print(request.get_json().get('visitedDomain'))
+        self.domain_visited = request.get_json().get('visitedDomain')
         results = []
         for input_value in input_messages:
             self.logger.info(f'Starting scrape for URL: {input_value}\n')
@@ -78,7 +84,7 @@ class MyWebScraper:
                 results.extend(result)
             except Exception as e:
                 self.logger.error(f'Error processing URL {input_value}: {e}\n')
-                results.append({'url': input_value, 'error': str(e)})
+                results.append({'url': input_value, 'error': str(e), 'method': 'scrape'})
         return jsonify(results)
 
     def get_logs(self):
@@ -211,12 +217,13 @@ class MyWebScraper:
         return robot_delay, robot_allowance
 
 
-    def parse_links(self, a_tags):
+    def parse_links(self, driver):
         self.logger.info("Parsing links\n")
         links = []
         #print('Parsing links')
         #od tuki naprej se neki sfuka z linki in pol ne dela
-        for link in a_tags:
+
+        for link in driver.find_elements(By.TAG_NAME, "a"):
             href = link.get_attribute("href")
             if href is not None and validators.url(href):
                 canonized_href = self.canonize_url(href)
@@ -232,10 +239,10 @@ class MyWebScraper:
         #self.logger.info("Canonized URL \n")
         return canonized_url
 
-    def parse_img(self, imgs):
+    def parse_img(self, driver):
         self.logger.info("Parsing images\n")
         images = []
-        for img in imgs:
+        for img in driver.find_elements(By.TAG_NAME, "img"):
             src = img.get_attribute("src")
             # print(src)
             if src:
@@ -312,27 +319,35 @@ class MyWebScraper:
             #save content of robots.txt to robot_txt_content
 
 
-            driver.get(url + "robots.txt")
-
+            driver.get(url + "/robots.txt")
+            # print(url)
             domain = urlparse(url).netloc
 
-            #visited_domains = self.get_visited_domains()
+            # result_robot = {}
+            
+            if not self.domain_visited:
+                robot_txt_content = driver.page_source
+                sitemap_host = self.get_sitemap_host(driver)
+                sitemap_content = self.get_sitemap_content(sitemap_host[0])
+            else:
+                robot_txt_content = ""
+                # robot_txt_content = request.get(url + "/robots.txt").text
+                sitemap_content = []
+                sitemap_host = []
+                self.logger.info("Domain already visited\n")
+                print('domain already visited')
 
-            result_robot = {}
-            #if domain not in visited_domains:
-            self.logger.info("Domain already visited\n")
-            robot_txt_content = driver.page_source
-            sitemap_host = self.get_sitemap_host(driver)
-            sitemap_content = self.get_sitemap_content(sitemap_host[0])
             robot_delay, robot_allowance = self.check_robot_txt(driver)
 
+            print('got through robot parsing')
+
             result_robot = {
-                    'domain': domain,
-                    'robot_txt_content': robot_txt_content,
-                    'sitemap_host_content': sitemap_host,
-                    'robot_delay': robot_delay,
-                    'robot_allowance': robot_allowance,
-                    'sitemap_content_links': sitemap_content,
+                'domain': domain,
+                'robot_txt_content': robot_txt_content,
+                'sitemap_host_content': sitemap_host,
+                'robot_delay': robot_delay,
+                'robot_allowance': robot_allowance,
+                'sitemap_content_links': sitemap_content,
             }
 
             if robot_delay is not None:
@@ -356,14 +371,21 @@ class MyWebScraper:
             else:
                 driver.get(url)
 
-                a_tags = driver.find_elements(By.TAG_NAME, "a")
-                imgs = driver.find_elements(By.TAG_NAME, "img")
+                print('got to page parsing')
+
                 html = driver.page_source
 
+                # print(a_tags)
                 self.logger.info("HTML content found\n")
-                links = self.parse_links(a_tags)
-                img = self.parse_img(imgs)
+
+                links = self.parse_links(driver)
+                print('got through link parsing')
+                # print(links)
+
+                img = self.parse_img(driver)
                 html_hash = self.hash_html(html)
+
+                print('got through page parsing')
 
                 driver.close()
                 result_parse = {
@@ -384,7 +406,7 @@ class MyWebScraper:
 
         except Exception as e:
             self.logger.error(f"Error processing URL {url}: {e}\n")
-            return {'url': url, 'error': str(e)}
+            return {'url': url, 'error': str(e), 'method': 'process_url'}
 
     def main(self, urls):
 
@@ -398,7 +420,7 @@ class MyWebScraper:
                     results.append(result)
                 except Exception as exc:
                     self.logger.error(f'Error processing URL {url}: {exc}\n')
-                    results.append({'url': url, 'error': str(exc)})
+                    results.append({'url': url, 'error': str(exc), 'method': 'main'})
 
         self.logger.info("Finished scraping sending results to frontier\n")
 
