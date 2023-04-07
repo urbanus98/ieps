@@ -55,7 +55,7 @@ class Frontier:
     def visited_domains(self):
 
         cur = conn.cursor()
-        cur.execute("SELECT domain FROM crawldb.site")
+        cur.execute("SELECT domain, robots_content, delay FROM crawldb.site")
         db_response = cur.fetchall()
         #print(db_response)
         cur.close()
@@ -91,16 +91,28 @@ class Frontier:
         #print(site_id)
         if site_id is None:
             cur.execute('INSERT INTO crawldb.site '
-                        '(domain, robots_content, sitemap_content ) '
+                        '(domain, robots_content, sitemap_content, delay) '
                         f"VALUES ( '{input_json.get('domain')}', '{input_json.get('robot_txt_content')}', "
-                        f"'{input_json.get('sitemap_content_links')}' ) ON CONFLICT (domain) DO NOTHING RETURNING id")
+                        f"'{input_json.get('sitemap_host_content')}', {input_json.get('robot_delay')} ) ON CONFLICT (domain) DO NOTHING RETURNING id")
+
+            # add links from sitemap into FRONTIER
+            links = input_json.get('sitemap_content_links')
+            filtered_links = []
+            for link in links:
+                parsed_link = urlparse(link)
+                if parsed_link.netloc.endswith(".gov.si"):
+                    filtered_links.append(link)
+
+            url_query = "INSERT INTO crawldb.page (url, page_type_code) VALUES " + ",".join(
+                [f"('{link}', 'FRONTIER')" for link in filtered_links]) + " ON CONFLICT (url) DO NOTHING;"
+            # print(query)
+            cur.execute(url_query)
 
             if site_id is not None:
                 site_id = site_id[0]
         #print(site_id)
 
         cur.close()
-
 
         response = make_response(jsonify({"site_id": site_id}), 200)
 
