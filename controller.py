@@ -2,10 +2,10 @@ import requests
 import json
 import time
 from urllib.parse import urlparse
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-
-
-FRONTIER_ENDPOINT="https://172.23.3.4:49500"
+FRONTIER_ENDPOINT="https://31.15.143.42:49500"
 AUTH = ("Crawler1", "&*qRyQ-7dMCX$S9&")
 
 last_request_time = {}
@@ -48,15 +48,20 @@ if __name__=='__main__':
         scrape_result = scrape(scrape_dict)
 
         if not scrape_dict.get('visitedDomain'):
-            domain_data = scrape_result.json()[0][0]
-            delay = domain_data.get('robot_delay')
-            domain = domain_data.get('domain')
-            domain_delays['domain'] = delay
-            print("Saved delay for domain", domain, delay)
+            print(scrape_result.json())
+            if ('error') in scrape_result.json()[0]:
+                print("Error when parsing page, deleting page from frontier.")
 
-        print("Got scrape result, saving page")
+            else:
+                domain_data = scrape_result.json()[0][0]
+                delay = domain_data.get('robot_delay')
+                domain = domain_data.get('domain')
+                if delay is not None:
+                    domain_delays['domain'] = delay
+                else:
+                    domain_delays['domain'] = 5
+                print("Saved delay for domain", domain, delay)
+                print("Got scrape result, saving site")
         save_page_result = save_page(scrape_result.json())
         print("Save page result: ", save_page_result.json())
-
-
 
