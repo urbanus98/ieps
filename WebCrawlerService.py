@@ -190,7 +190,7 @@ class MyWebScraper:
         robot_allowance = None
 
         robots_url = driver.current_url.rstrip('/') + '/robots.txt'
-
+        print(robots_url)
         # Parse the robots.txt file
         rp = RobotExclusionRulesParser()
         rp.fetch(robots_url)
@@ -294,21 +294,10 @@ class MyWebScraper:
             self.TIMEOUT = 5
             sitemap_content = []
 
-            driver.get(url + "/robots.txt")
-
             domain = urlparse(url).netloc
 
-            print('parsing robots.txt')
-
-            rc = ""
-            try:
-                # response = urllib.request.urlopen(url + "/robots.txt")
-                response = requests.get('https://' + domain + "/robots.txt")
-                rc = response.text
-            except urllib.error.HTTPError as e:
-                print("Error retrieving robots.txt file" + e.reason)
-
             print(self.domain_visited)
+
             if self.domain_visited == 1:
                 robot_txt_content = ""
                 sitemap_content = []
@@ -316,14 +305,29 @@ class MyWebScraper:
                 print('Domain already visited')
                 self.logger.info("Domain already visited\n")
             else:
+                driver.get(url + "/robots.txt")
+                print('parsing robots.txt')
+                rc = ""            
+                try:
+                    # get substring until first /
+                    protocol = url[:url.find('/')]
+                    # print(protocol + '//' + domain + "/robots.txt")
+
+                    # response = urllib.request.urlopen(url + "/robots.txt")
+                    response = requests.get(protocol + '//' + domain + "/robots.txt")
+                    rc = response.text
+                except urllib.error.HTTPError as e:
+                    print("Error retrieving robots.txt file" + e.reason)
+
                 robot_txt_content = rc
                 sitemap_host = self.get_sitemap_host(driver)
                 sitemap_content = self.get_sitemap_content(sitemap_host[0])
-                print('Domain not already visited')
-                
-            robot_delay, robot_allowance = self.check_robot_txt(driver)
+                robot_delay, robot_allowance = self.check_robot_txt(driver)
 
-            print('got through robot parsing')
+                if robot_delay is not None:
+                    self.TIMEOUT = max(self.TIMEOUT, robot_delay)
+                print('Domain not already visited')
+                print('got through robot parsing')
 
             result_robot = {
                 'domain': domain,
@@ -334,10 +338,13 @@ class MyWebScraper:
                 'sitemap_content_links': sitemap_content,
             }
 
-            if robot_delay is not None:
-                self.TIMEOUT = max(self.TIMEOUT, robot_delay)
+            if self.domain_visited == 1:
+                sleep = 1.5
+            else:
+                sleep = self.TIMEOUT
 
-            time.sleep(self.TIMEOUT)
+            time.sleep(sleep)
+            print('sleeping for ' + str(sleep) + ' seconds')
 
             status_code = self.session.get(url).status_code if not self.check_binary(url) else ""
 
@@ -355,9 +362,6 @@ class MyWebScraper:
             else:
                 driver.get(url)
 
-                # if self.domain_visited == 0:
-                #     time.sleep(1)
-                # else:
                 time.sleep(0.5)
 
                 html = driver.page_source
