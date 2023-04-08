@@ -294,6 +294,7 @@ class MyWebScraper:
             self.TIMEOUT = 5
             sitemap_content = []
 
+            #WHAT IF WE GET url = http://www.gov.si/osdifnasdofns/ ???
             driver.get(url + "/robots.txt")
 
             domain = urlparse(url).netloc
@@ -301,6 +302,7 @@ class MyWebScraper:
             print('parsing robots.txt')
 
             rc = ""
+            # dont double call robots, especially not without timeout
             try:
                 # response = urllib.request.urlopen(url + "/robots.txt")
                 response = requests.get('https://' + domain + "/robots.txt")
@@ -337,6 +339,7 @@ class MyWebScraper:
             if robot_delay is not None:
                 self.TIMEOUT = max(self.TIMEOUT, robot_delay)
 
+            # this timeout only applies if domain not yet visited
             time.sleep(self.TIMEOUT)
 
             status_code = self.session.get(url).status_code if not self.check_binary(url) else ""
