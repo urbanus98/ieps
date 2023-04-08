@@ -294,12 +294,16 @@ class MyWebScraper:
             self.TIMEOUT = 5
             sitemap_content = []
 
+            print(self.domain_visited)
             domain = urlparse(url).netloc
 
-            print(self.domain_visited)
+            
+            
 
             if self.domain_visited == 1:
                 robot_txt_content = ""
+                robot_delay = None
+                robot_allowance = None
                 sitemap_content = []
                 sitemap_host = []
                 print('Domain already visited')
