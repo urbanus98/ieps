@@ -250,7 +250,7 @@ class MyWebScraper:
                 if ext.lower() in ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.bmp', '.webp']:
                     image = {
                         "filename": src,
-                        "contentType": ext,
+                        "contentType": ext.upper(),
                         "data": [],
                         "accessedTime": datetime.now().isoformat(),
                     }
