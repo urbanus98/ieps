@@ -36,7 +36,7 @@ class MyWebScraper:
 
     WEB_DRIVER_LOCATION = None
     TIMEOUT = 5
-    BIN_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx"]
+    BIN_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx", "xls", "xlsx"]
     FRONTIER_SERVER_URL = 'http://127.0.0.1:8000'
     
     found_bin = ""
@@ -265,8 +265,8 @@ class MyWebScraper:
         self.logger.info("Checking binary\n")
         for ext in self.BIN_EXT:
             # if ext in url: # maybe better
-            if url.endswith(ext):
-                self.found_bin = ext
+            if url.endswith(ext.lower()) or url.endswith(ext.upper()):
+                self.found_bin = ext.upper()
                 self.logger.info("Found binary\n")
                 return True
         self.logger.info("Not binary\n")
