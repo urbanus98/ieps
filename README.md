@@ -1,4 +1,4 @@
-# ieps
+# WEIR Programming Assignment 1
 
 The crawler consists of three programs:
 
@@ -6,7 +6,7 @@ The crawler consists of three programs:
  - controller.py fetches new links from frontier and requests parsing from WebCrawlerService
  - frontier.ipynb handles fetching new links and saving data into a postgres database (in our case postgres was running in a Docker container on the same machine. It supports multiple remote instances of controller.py running simultaneously.
  
- ##Set up:
+ #Set up:
  
  1. Set up an instance of PostgreSQL database. Inside crawldb.page table, insert seed URLs with page_type_code set to 'FRONTIER'.
  2. Run frontier.ipynb and edit credentials and host inside "conn" variable to match PostgreSQL instance in (1.).
