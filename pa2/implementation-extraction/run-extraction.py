@@ -1,8 +1,7 @@
 import sys
 import regex
+import xpath
 
-# with open('example.html', 'r') as f:
-#     html = f.read()
 rtv_a = open("../input-extraction/rtvslo.si/Audi A6 50 TDI quattro_ nemir v premijskem razredu - RTVSLO.si.html", encoding="utf-8").read()
 rtv_b = open("../input-extraction/rtvslo.si/Volvo XC 40 D4 AWD momentum_ suvereno med najboljše v razredu - RTVSLO.si.html", encoding="utf-8").read()
 
@@ -21,7 +20,13 @@ if sys.argv[1] == "A":
 
 
 elif sys.argv[1] == "B":
-    print('xpath')
+    print('Overstock')
+    xpath.getOverstock(jewelry_a)
+    xpath.getOverstock(jewelry_b)
+
+    print('RTV')
+    xpath.getRTV(rtv_a)
+    xpath.getRTV(rtv_b)
 
 elif sys.argv[1] == "C":
     print('road runner')

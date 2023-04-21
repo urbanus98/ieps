@@ -9,7 +9,6 @@ def getOverstock(html):
     price_pattern = r"<span class=\"bigred\"><b>(.*?)<\/b><\/span>"
     saving_pattern = r"<span class=\"littleorange\">(\$[\d.,]+)"
     savingPercent_pattern = r"<span class=\"littleorange\">.*?(\d+%)"
-    
 
     titles = re.findall(title_pattern, html)
     list_prices = re.findall(list_price_pattern, html)
