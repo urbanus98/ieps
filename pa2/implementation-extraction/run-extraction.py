@@ -8,6 +8,9 @@ rtv_b = open("../input-extraction/rtvslo.si/Volvo XC 40 D4 AWD momentum_ suveren
 jewelry_a = open("../input-extraction/overstock.com/jewelry01.html").read()
 jewelry_b = open("../input-extraction/overstock.com/jewelry02.html").read()
 
+mimovrste_a = open("../input-extraction/mimovrste.si/mimovrste_1.html", encoding="utf-8").read()
+mimovrste_b = open("../input-extraction/mimovrste.si/mimovrste_2.html", encoding="utf-8").read()
+
 
 if sys.argv[1] == "A":
     print('Overstock:')
@@ -18,6 +21,10 @@ if sys.argv[1] == "A":
     regex.getRTV(rtv_a)
     regex.getRTV(rtv_b)
 
+    print('Mimovrste:')
+    regex.getMimovrste(mimovrste_a)
+    regex.getMimovrste(mimovrste_b)
+
 
 elif sys.argv[1] == "B":
     print('Overstock')
@@ -27,6 +34,10 @@ elif sys.argv[1] == "B":
     print('RTV')
     xpath.getRTV(rtv_a)
     xpath.getRTV(rtv_b)
+
+    print('Mimovrste')
+    xpath.getMimovrste(mimovrste_a)
+    xpath.getMimovrste(mimovrste_b)
 
 elif sys.argv[1] == "C":
     print('road runner')

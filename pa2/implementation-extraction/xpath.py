@@ -52,3 +52,28 @@ def getRTV(page):
     
     print(json.dumps(output, indent=1, ensure_ascii=False))
     # print(output)
+
+def getMimovrste(page):
+    tree = html.fromstring(page)
+
+    title = tree.xpath('//h1[@class="detail__title detail__title--desktop"]/text()')[0].strip()
+    number = tree.xpath('//span[@class="detail-panel-under-title__text"]/text()')[0].strip().split()[1]
+    availability = tree.xpath('//h3[@class="availability-box__status availability-box__status--available"]/text()')[0].strip()
+    price_old = tree.xpath('//span[@class="price__wrap__box__old__tooltip__value"]/span/text()')[0].strip()
+    price_final = tree.xpath('//div[@class="price__wrap__box__final"]/span/text()')[0]
+    table_rows_params = tree.xpath('//table[@class="product-parameters__table"]/tbody/tr/td[@class="product-parameters__parameter"]/text()')
+    table_rows_values = tree.xpath('//table[@class="product-parameters__table"]/tbody/tr/td[@class="product-parameters__parameter product-parameters__parameter--value"]/text()')
+
+    table = []
+    for i in range(len(table_rows_values)):
+        table.append(table_rows_params[i].strip() + ": " + table_rows_values[i].strip())
+
+    output = {
+        'title': title,
+        'number': number,
+        'old_price': price_old,
+        'final_price': price_final,
+        'availability': availability,
+        'technical_details': table
+    }
+    print(json.dumps(output, indent=1, ensure_ascii=False))

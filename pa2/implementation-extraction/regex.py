@@ -70,3 +70,37 @@ def getRTV(html):
     }
     # print(json.dumps(output, indent=1, ensure_ascii=False))
 
+
+def getMimovrste(html):
+
+    title_pattern = r'<h1.*?class="detail__title.*?".*?>\n?(.*)\n?.*?<\/h1>'
+    number_pattern = r'<span.*?class="detail-panel-under-title__text.*>\n?\s*Številka:\s*([0-9]*)\n?\s*<\/span>'
+    # desc_pattern = r'<span.*?itemprop="description".*?>\n?(.*)\n?.*?<\/span>'
+    availability_pattern = r'<h3.*?class="availability-box__status availability-box__status--available.*>\n?\s*(.*)\n?\s*<\/h3>'
+    old_price_pattern = r'<span.*class=".*?price__wrap__box__old__tooltip__value"><span>\n?[\s]*([0-9.,]*).*\n?.*<\/span>'
+    final_price_pattern = r'<div.*class=".*?price__wrap__box__final"><span>\n?[\s]*([0-9,.]*).*\n?.*<\/span>'
+    table_params_pattern =  r'<td.*?class="product-parameters__parameter">\n?(.*)\n?.*<\/td>'
+    table_values_pattern =  r'<td.*?class=".*?product-parameters__parameter--value">\n?(.*)\n?.*?\n?.*?\n?.*?<\/td>'
+
+    title_match = re.search(title_pattern, html).group(1).strip()
+    number_match = re.search(number_pattern, html).group(1).strip()
+    # description = re.search(desc_pattern, html).group(1).strip()
+    availability = re.search(availability_pattern, html).group(1).strip()
+    old_price = re.search(old_price_pattern, html).group(1)
+    final_price = re.search(final_price_pattern, html).group(1)
+    table_params = re.findall(table_params_pattern, html)
+    table_values = re.findall(table_values_pattern, html)
+
+    table = []
+    for i in range(len(table_params)):
+        table.append(table_params[i].strip() + ": " + table_values[i].strip())
+        
+    output = {
+        'title': title_match,
+        'number': number_match,
+        'old_price': old_price,
+        'final_price': final_price,
+        'availability': availability,
+        'technical_details': table
+    }
+    print(json.dumps(output, indent=1, ensure_ascii=False))
