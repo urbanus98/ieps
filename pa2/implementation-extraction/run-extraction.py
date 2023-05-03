@@ -1,6 +1,7 @@
 import sys
 import regex
 import xpath
+import TheBestExtractionAlgorithmEverTM
 
 rtv_a = open("../input-extraction/rtvslo.si/Audi A6 50 TDI quattro_ nemir v premijskem razredu - RTVSLO.si.html", encoding="utf-8").read()
 rtv_b = open("../input-extraction/rtvslo.si/Volvo XC 40 D4 AWD momentum_ suvereno med najboljše v razredu - RTVSLO.si.html", encoding="utf-8").read()
@@ -41,3 +42,14 @@ elif sys.argv[1] == "B":
 
 elif sys.argv[1] == "C":
     print('road runner')
+
+    #print('Overstock')
+    #TheBestExtractionAlgorithmEverTM.getOverstock(jewelry_a, jewelry_b)
+
+    #print('RTV')
+    #TheBestExtractionAlgorithmEverTM.getRTV(rtv_a, rtv_b)
+
+    #print('Mimovrste')
+    #TheBestExtractionAlgorithmEverTM.getMimovrste(mimovrste_a, mimovrste_b)
+else:
+    print("Error: wrong key. Please use 'A', 'B', or 'C' as the input.")
