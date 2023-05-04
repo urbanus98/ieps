@@ -12,6 +12,11 @@ jewelry_b = open("../input-extraction/overstock.com/jewelry02.html").read()
 mimovrste_a = open("../input-extraction/mimovrste.si/mimovrste_1.html", encoding="utf-8").read()
 mimovrste_b = open("../input-extraction/mimovrste.si/mimovrste_2.html", encoding="utf-8").read()
 
+sim_threshold = 0.5
+diff_threshold = 0.2
+title_threshold = 0.5
+main_text_threshold = 0.2
+
 
 if sys.argv[1] == "A":
     print('Overstock:')
@@ -41,15 +46,16 @@ elif sys.argv[1] == "B":
     xpath.getMimovrste(mimovrste_b)
 
 elif sys.argv[1] == "C":
-    print('road runner')
+    print('Webstemmer')
 
-    #print('Overstock')
-    #TheBestExtractionAlgorithmEverTM.getOverstock(jewelry_a, jewelry_b)
+    print('Overstock')
+    print(TheBestExtractionAlgorithmEverTM.webstemmer(jewelry_a,jewelry_b, sim_threshold, diff_threshold, title_threshold, main_text_threshold))
 
-    #print('RTV')
-    #TheBestExtractionAlgorithmEverTM.getRTV(rtv_a, rtv_b)
-
-    #print('Mimovrste')
-    #TheBestExtractionAlgorithmEverTM.getMimovrste(mimovrste_a, mimovrste_b)
+    print('RTV')
+    print(TheBestExtractionAlgorithmEverTM.webstemmer(rtv_a, rtv_b, sim_threshold, diff_threshold,
+                                                      title_threshold, main_text_threshold))
+    print('Mimovrste')
+    print(TheBestExtractionAlgorithmEverTM.webstemmer(mimovrste_a,mimovrste_b , sim_threshold, diff_threshold,
+                                                      title_threshold, main_text_threshold))
 else:
     print("Error: wrong key. Please use 'A', 'B', or 'C' as the input.")
