@@ -8,10 +8,30 @@ import json
 # Step 1: Parsing the page
 def parse_page(html):
     soup = BeautifulSoup(html, 'html.parser')
-    text = soup.stripped_strings
-    blocks = [str(t) for t in text]
-    print(blocks)
-    return blocks
+    soup_tags = soup.find_all(True)
+    layout_blocks = []
+    recursive_tags = []
+    for tag in soup_tags:
+        recursive_tags.append(tag.name)
+        text_content = str(tag.decode_contents())
+        #print(text_content)
+        
+        if len(text_content) > 0:
+            if text_content[0] in ["<"," ","\n","\xa0","_","."] or tag.name in ["script", "meta", "link"]:
+                #recursive_tags.pop()
+                pass
+            else:
+                layout_blocks.append([recursive_tags, tag.get_text()])
+                recursive_tags.pop()
+                recursive_tags = []
+        else: 
+            recursive_tags.pop()
+
+
+    #text = soup.stripped_strings
+    #blocks = [str(t) for t in text]
+    #print(layout_blocks)
+    return str(layout_blocks)
 
 # Step 2: Computing similarity
 def similarity(a, b):
