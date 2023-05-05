@@ -94,12 +94,15 @@ def find_title_and_main_text(layout_blocks, diff_scores, title_threshold, main_t
 def create_wrapper(results):
     wrapper = []
     for res in results:
+        #print(res['main_text'][0])
+        string_array = eval(res['main_text'][0])
+        
         wrapper.append({
-            'cluster_id': int(res['cluster_id']),
-            'title': res['title'],
-            'main_text': res['main_text']
+            #cluster_id': int(res['cluster_id']),
+            #'title': res['title'],
+            'main_text': string_array
         })
-    return json.dumps(wrapper, indent=2)
+    return json.dumps(wrapper, indent=1)
 
 def webstemmer(html_page1,html_page2, sim_threshold, diff_threshold, title_threshold, main_text_threshold):
     html_pages = [html_page1, html_page2]
