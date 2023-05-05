@@ -49,11 +49,11 @@ elif sys.argv[1] == "C":
     print('Webstemmer')
 
     print('Overstock')
-    print(TheBestExtractionAlgorithmEverTM.webstemmer(jewelry_a,jewelry_b, sim_threshold, diff_threshold, title_threshold, main_text_threshold))
+    #print(TheBestExtractionAlgorithmEverTM.webstemmer(jewelry_a,jewelry_b, sim_threshold, diff_threshold, title_threshold, main_text_threshold))
 
     print('RTV')
-    print(TheBestExtractionAlgorithmEverTM.webstemmer(rtv_a, rtv_b, sim_threshold, diff_threshold,
-                                                      title_threshold, main_text_threshold))
+    #print(TheBestExtractionAlgorithmEverTM.webstemmer(rtv_a, rtv_b, sim_threshold, diff_threshold,
+                                                      #title_threshold, main_text_threshold))
     print('Mimovrste')
     print(TheBestExtractionAlgorithmEverTM.webstemmer(mimovrste_a,mimovrste_b , sim_threshold, diff_threshold,
                                                       title_threshold, main_text_threshold))
