@@ -45,8 +45,8 @@ def get_text_elements(html):
     return text_elements
     
 def readFiles():
-    # root_dir = 'pa3_data'
-    root_dir = 'test_data'
+    root_dir = 'pa3_data'
+    #root_dir = 'test_data'
     # Iterate over all subdirectories and files
     for dirpath, dirnames, filenames in os.walk(root_dir):
         for filename in filenames:
