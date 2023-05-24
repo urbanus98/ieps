@@ -1,5 +1,6 @@
 import bs4
 import os
+import re
 from nltk.tokenize import word_tokenize
 from stopwords import stop_words_slovene, stopcharacters
 import string
@@ -45,8 +46,8 @@ def get_text_elements(html):
     return text_elements
     
 def readFiles():
-    root_dir = 'pa3_data'
-    #root_dir = 'test_data'
+    # root_dir = 'pa3_data'
+    root_dir = 'test_data'
     # Iterate over all subdirectories and files
     for dirpath, dirnames, filenames in os.walk(root_dir):
         for filename in filenames:
@@ -62,35 +63,34 @@ def readFiles():
 
             htmls.append(HTMLDocument(file_path, text_elements))
 
+def isLegitWord(word):
+    if len(word) > 2:
+        if word not in stop_words_slovene:
+            if word not in stopcharacters:
+                if not isNumber(word) or not isLink(word):
+                    return True
+    return False
 
-
-# path = 'pa3_data/e-prostor.gov.si/e-prostor.gov.si.4.html'
-
-# with open(path, 'r', encoding="utf8") as f:
-#     html = f.read()
-    
-# text_elements = get_text_elements(html)
 
 def preprocess():
 
     readFiles()
 
     for html in htmls:
+        print(html.path)
         words = word_tokenize(html.text)
         for word in words:
             word = word.strip()
-            if len(word) > 2:
-                if word not in stop_words_slovene:
-                    if word not in stopcharacters:
-                        if not isNumber(word) or not isLink(word):
-                            if word not in html.data:
-                                # get all indexes of word in text
-                                indexes = [i for i, x in enumerate(words) if x == word]
-                                # indexes to string
-                                stringexes = ','.join(map(str, indexes))
+            if isLegitWord(word):
+                if word not in html.data:
+                    # get all indexes of word in words
+                    indexes = [i for i, x in enumerate(words) if x == word]
+                    
+                    # indexes to string
+                    stringexes = ','.join(map(str, indexes))
 
-                                html.data[word] = WordData(word, len(indexes), stringexes)
-                                # print(stringexes)
+                    html.data[word] = WordData(word, len(indexes), stringexes)
+                    # print(stringexes)
     
     return htmls
 
