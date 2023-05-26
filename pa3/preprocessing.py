@@ -77,7 +77,7 @@ def preprocess():
     readFiles()
 
     for html in htmls:
-        print(html.path)
+        #print(html.path)
         words = word_tokenize(html.text)
         for word in words:
             word = word.strip()
