@@ -25,9 +25,7 @@ def preprocess_query(query):
     return words
 
 
-def get_snippet(document_name, word_indexes):
-    # Assuming you have a function to get text from the document
-    document_text = get_text_from_document(document_name)
+def get_snippet(document_name, word_indexes, document_text):
     words = word_tokenize(document_text)
     snippets = []
 
@@ -49,23 +47,35 @@ def search(query):
         start_time = time.time()  # Start the timer
 
         with closing(sqlite3.connect('inverted-index.db')) as conn, closing(conn.cursor()) as c:
-            results = []
+            results = {}
 
-            for word in words:
-                # Get data for a word
-                c.execute("SELECT * FROM Posting WHERE word=?", (word,))
-                rows = c.fetchall()
+            # Prepare placeholders and parameters for SQL query
+            placeholders = ', '.join(['?'] * len(words))
+            sql = f"""
+                    SELECT p.documentName AS docName, frequency, indexes
+                    FROM Posting p
+                    WHERE
+                        p.word IN ({placeholders})
+                    ORDER BY frequency DESC
+                """
+            c.execute(sql, words)
+            rows = c.fetchall()
 
-                # Append results
-                for row in rows:
-                    document_name = row[1]
-                    word_indexes = list(map(int, row[3].split(',')))
-                    snippets = get_snippet(document_name, word_indexes)
-                    result = (row[2], row[1], snippets)
-                    results.append(result)
+            # Fetch all relevant document texts at once
+            document_texts = {row[0]: get_text_from_document(row[0]) for row in rows}
 
-            # Sort results by frequency
-            results.sort(key=lambda x: x[0], reverse=True)
+            # Prepare results outside of the DB connection/cursor context
+            for row in rows:
+                document_name = row[0]
+                frequency = row[1]
+                word_indexes = list(map(int, row[2].split(',')))
+                snippets = get_snippet(document_name, word_indexes,
+                                       document_texts[document_name])  # Pass the text directly
+                if document_name in results:
+                    results[document_name][0] += frequency
+                    results[document_name][1].extend(snippets)
+                else:
+                    results[document_name] = [frequency, snippets]
 
         end_time = time.time()  # End the timer
         elapsed_time = end_time - start_time  # Calculate elapsed time
@@ -74,8 +84,9 @@ def search(query):
         print(f"Results for a query: \"{query}\"\n")
         print(f"Results found in {elapsed_time * 1000:.0f}ms.\n")
         print(f"{'Frequencies':<12} {'Document':<40} {'Snippet'}")
-        print(f"{'-----------':<12} {'----------------------------------------':<40} {'-----------------------------------------------------------'}")
-        for frequency, document, snippets in results:
+        print(
+            f"{'-----------':<12} {'----------------------------------------':<40} {'-----------------------------------------------------------'}")
+        for document, (frequency, snippets) in results.items():
             print(f"{frequency:<12} {document:<40} {snippets}")
 
     except Exception as e:
