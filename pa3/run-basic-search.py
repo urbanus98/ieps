@@ -55,31 +55,20 @@ def search(query):
 
         for word in words:
             for html in htmls:
-                print(html.data)
-        
-
-
-        """
-        with closing(sqlite3.connect('inverted-index.db')) as conn, closing(conn.cursor()) as c:
-            results = []
-
-            for word in words:
-                # Get data for a word
-                c.execute("SELECT * FROM Posting WHERE word=?", (word,))
-                rows = c.fetchall()
-
-                # Append results
-                for row in rows:
-                    document_name = row[1]
-                    word_indexes = list(map(int, row[3].split(',')))
+                if word in html.data:
+                    wordobject = html.data[word]
+                    document_name = html.path
+                    #print(document_name)
+                    word_indexes = list(map(int, wordobject.indexes.split(',')))
+                    #print(word_indexes)
                     snippets = get_snippet(document_name, word_indexes)
-                    result = (row[2], row[1], snippets)
+                    #print(snippets)
+                    result = (wordobject.frequency, document_name, snippets)
+                    #print(result)
                     results.append(result)
-        
-            # Sort results by frequency
-            results.sort(key=lambda x: x[0], reverse=True)
-        """
+                
 
+        results.sort(key=lambda x: x[0], reverse=True)
         #print(results)
         end_time = time.time()  # End the timer
         elapsed_time = end_time - start_time  # Calculate elapsed time
